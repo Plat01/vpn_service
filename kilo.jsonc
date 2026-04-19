@@ -1,0 +1,63 @@
+// Project-level Kilo configuration for the VPN subscription service.
+{
+  "instructions": [
+    ".kilo/rules/architecture.md",
+    ".kilo/rules/security.md",
+    ".kilo/rules/fastapi.md",
+    ".kilo/rules/data-model.md",
+    ".kilo/rules/workflow.md"
+  ],
+
+  "permission": {
+    "external_directory": "ask",
+    "bash": "ask",
+    "task": "allow",
+    "skill": "allow",
+    "lsp": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "websearch": "ask",
+    "webfetch": "ask",
+
+    "read": {
+      ".env": "deny",
+      ".env.*": "deny",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "*.crt": "deny",
+      "secrets/**": "deny",
+      "private/**": "deny",
+      "logs/**": "deny",
+      ".venv/**": "deny",
+      "*": "allow"
+    },
+
+    "edit": {
+      ".env": "deny",
+      ".env.*": "deny",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "*.crt": "deny",
+      "secrets/**": "deny",
+      "private/**": "deny",
+      "logs/**": "deny",
+      "AGENTS.md": "ask",
+      "kilo.jsonc": "ask",
+      "alembic/versions/**": "ask",
+      "*": "allow"
+    }
+  },
+
+  "watcher": {
+    "ignore": [
+      ".venv/**",
+      "__pycache__/**",
+      ".pytest_cache/**",
+      "htmlcov/**",
+      "dist/**",
+      "build/**",
+      "logs/**"
+    ]
+  }
+}

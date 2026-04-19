@@ -1,0 +1,44 @@
+cat > '.kilocodeignore' <<'EOF'
+# Kilo Code ignore rules for this project.
+# Note: the primary access-control mechanism is permission rules in kilo.jsonc.
+# This file is kept for compatibility, defense in depth, and clearer repository defaults.
+
+# Secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+secrets/
+private/
+
+# Logs and local runtime artifacts
+logs/
+*.log
+tmp/
+.cache/
+
+# Python virtual envs and caches
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local generated/exported files that should not pollute agent context
+backups/
+exports/
+storage/generated/
+storage/exports/
+EOF
