@@ -40,3 +40,6 @@ backups/
 exports/
 storage/generated/
 storage/exports/
+
+# Git
+.git/

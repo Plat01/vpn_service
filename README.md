@@ -73,6 +73,29 @@ docker-compose down
 | Method | Endpoint | Описание |
 |--------|----------|----------|
 | GET | `/api/v1/admin/test` | Проверка административного доступа |
+| GET | `/api/v1/admin/vpn-sources` | Список VPN источников (без URI) |
+| GET | `/api/v1/admin/vpn-sources/{id}` | Детальная информация о VPN источнике (с URI) |
+| POST | `/api/v1/admin/vpn-sources` | Создание VPN источника |
+| POST | `/api/v1/admin/vpn-sources/batch` | Batch создание VPN источников |
+| PATCH | `/api/v1/admin/vpn-sources/{id}` | Обновление VPN источника |
+| DELETE | `/api/v1/admin/vpn-sources/{id}` | Удаление VPN источника |
+| GET | `/api/v1/admin/vpn-source-tags` | Список тегов |
+| POST | `/api/v1/admin/vpn-source-tags` | Создание тега |
+
+### Query Parameters
+
+**GET `/api/v1/admin/vpn-sources`:**
+- `tags` (optional): фильтрация по тегам, comma-separated slugs (например, `tags=eu,premium`)
+- `is_active` (optional): фильтрация по статусу (`true`/`false`)
+
+### Supported VPN Protocols
+
+Поддерживаемые схемы URI:
+- `vless://` — VLESS protocol
+- `trojan://` — Trojan protocol
+- `vmess://` — VMess protocol (base64 encoded JSON)
+- `ss://` — Shadowsocks
+- `ssr://` — ShadowsocksR
 
 ## Архитектура
 
@@ -131,9 +154,9 @@ pytest
 
 ## Roadmap
 
-1. ✅ MVP Foundation (текущий этап)
-2. 🔜 Сервисная авторизация (client credentials)
-3. 🔜 Управление источниками VPN-ссылок
+1. ✅ MVP Foundation
+2. ✅ CRUD для VPN источников и тегов (текущий этап)
+3. 🔜 Сервисная авторизация (client credentials)
 4. 🔜 Выпуск временных подписок
 5. 🔜 Контроль срока действия и лимита устройств
 6. 🔜 Аудит и наблюдаемость
