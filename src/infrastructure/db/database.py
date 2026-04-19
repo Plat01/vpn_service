@@ -12,7 +12,12 @@ async_session_factory = async_sessionmaker(
 
 async def get_session() -> AsyncSession:
     async with async_session_factory() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def database_health_check() -> str:

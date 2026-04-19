@@ -74,22 +74,21 @@ class VlessUriValidator(VpnUriValidator):
         if not parsed.port:
             errors.append(ValidationError("Missing required parameter: 'port'"))
 
-        uuid_pattern = re.compile(
-            r"^/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
-        )
-        uuid_match = uuid_pattern.match(parsed.path)
-        if not uuid_match:
+        if not parsed.username:
             errors.append(
-                ValidationError("VLESS requires UUID in path (e.g., /uuid@path)")
+                ValidationError(
+                    "VLESS requires UUID in userinfo (e.g., uuid@host:port)"
+                )
             )
-        elif uuid_match:
-            uuid_str = uuid_match.group(1)
+        else:
             try:
                 import uuid
 
-                uuid.UUID(uuid_str)
+                uuid.UUID(parsed.username)
             except ValueError:
-                errors.append(ValidationError(f"Invalid UUID format: '{uuid_str}'"))
+                errors.append(
+                    ValidationError(f"Invalid UUID format: '{parsed.username}'")
+                )
 
         if errors:
             return VpnUriValidationResult.failure(errors)
