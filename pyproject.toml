@@ -1,0 +1,13 @@
+[project]
+name = "vpn-service"
+version = "0.1.0"
+description = "VPN Subscription Service for HAPP-compatible encrypted subscription links"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

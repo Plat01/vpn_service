@@ -4,7 +4,9 @@
 
 # Secrets and credentials
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
 *.pem
 *.key
 *.crt
