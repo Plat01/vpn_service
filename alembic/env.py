@@ -47,7 +47,7 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
+    async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()

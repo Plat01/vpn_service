@@ -73,12 +73,12 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.ForeignKeyConstraint(
-            "vpn_source_id",
+            ["vpn_source_id"],
             ["vpn_sources.id"],
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            "tag_id",
+            ["tag_id"],
             ["vpn_source_tags.id"],
             ondelete="CASCADE",
         ),

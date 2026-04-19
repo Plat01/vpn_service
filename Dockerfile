@@ -18,10 +18,13 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src/ ./src/
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
 COPY pyproject.toml ./
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 
 USER appuser
 
