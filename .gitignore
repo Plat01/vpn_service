@@ -1,4 +1,3 @@
-cat > '.kilocodeignore' <<'EOF'
 # Kilo Code ignore rules for this project.
 # Note: the primary access-control mechanism is permission rules in kilo.jsonc.
 # This file is kept for compatibility, defense in depth, and clearer repository defaults.
