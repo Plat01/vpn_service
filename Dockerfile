@@ -21,6 +21,9 @@ COPY src/ ./src/
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
 COPY pyproject.toml ./
+COPY entrypoint.sh ./entrypoint.sh
+
+RUN chmod +x /app/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -30,4 +33,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./entrypoint.sh"]
