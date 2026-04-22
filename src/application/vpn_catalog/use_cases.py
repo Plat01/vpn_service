@@ -48,6 +48,7 @@ class GetAllVpnSourcesUseCase:
             VpnSourceListItemDTO(
                 id=source.id.value,
                 name=source.name,
+                uri=source.uri.value,
                 description=source.description,
                 is_active=source.is_active,
                 tags=[

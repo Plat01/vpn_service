@@ -19,6 +19,7 @@ class VpnSourceDTO:
 class VpnSourceListItemDTO:
     id: UUID
     name: str
+    uri: str
     description: str | None
     is_active: bool
     tags: list["TagDTO"]
