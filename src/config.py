@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,16 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "change_me_in_production"
     environment: str = "dev"
+    log_level: str = "INFO"
+    library_log_level: str = "WARNING"
+
+    @field_validator("log_level", "library_log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in valid_levels:
+            raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
+        return v.upper()
 
     @property
     def database_url(self) -> str:
