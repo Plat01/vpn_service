@@ -86,6 +86,7 @@ async def list_vpn_sources(
             VpnSourceListItemResponse(
                 id=item.id,
                 name=item.name,
+                uri=item.uri,
                 description=item.description,
                 is_active=item.is_active,
                 tags=[

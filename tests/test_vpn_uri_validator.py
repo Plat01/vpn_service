@@ -68,6 +68,14 @@ class TestVlessUriValidator:
         assert not result.is_valid
         assert any("UUID" in e.message for e in result.errors)
 
+    def test_vless_uri_with_space_instead_of_question_mark(self):
+        uri = VpnUri(
+            value="vless://f6a46c0c-e0ae-4b95-ae88-c6cf087264ad@178.250.243.231:8443 type=tcp&security=reality&sni=ads.x5.ru#test"
+        )
+        result = self.validator.validate(uri)
+        assert result.is_valid
+        assert len(result.errors) == 0
+
 
 class TestTrojanUriValidator:
     def setup_method(self):
@@ -96,6 +104,14 @@ class TestTrojanUriValidator:
         result = self.validator.validate(uri)
         assert not result.is_valid
         assert any("password" in e.message for e in result.errors)
+
+    def test_trojan_uri_with_space_instead_of_question_mark(self):
+        uri = VpnUri(
+            value="trojan://password123@178.250.243.231:443 security=tls&sni=ads.x5.ru#test"
+        )
+        result = self.validator.validate(uri)
+        assert result.is_valid
+        assert len(result.errors) == 0
 
 
 class TestVmessUriValidator:

@@ -57,12 +57,20 @@ class CompositeVpnUriValidator(VpnUriValidator):
 
 
 class VlessUriValidator(VpnUriValidator):
+    def _normalize_uri(self, uri_str: str) -> str:
+        pattern = r"^vless://[^@]+@[^:]+:\d+\s+"
+        if re.match(pattern, uri_str):
+            return uri_str.replace(" ", "?", 1)
+        return uri_str
+
     def validate(self, uri: VpnUri) -> VpnUriValidationResult:
         errors: list[ValidationError] = []
         uri_str = uri.value
 
+        normalized = self._normalize_uri(uri_str)
+
         try:
-            parsed = urlparse(uri_str)
+            parsed = urlparse(normalized)
         except Exception:
             return VpnUriValidationResult.failure(
                 [ValidationError("Invalid URI format")]
@@ -100,12 +108,20 @@ class VlessUriValidator(VpnUriValidator):
 
 
 class TrojanUriValidator(VpnUriValidator):
+    def _normalize_uri(self, uri_str: str) -> str:
+        pattern = r"^trojan://[^@]+@[^:]+:\d+\s+"
+        if re.match(pattern, uri_str):
+            return uri_str.replace(" ", "?", 1)
+        return uri_str
+
     def validate(self, uri: VpnUri) -> VpnUriValidationResult:
         errors: list[ValidationError] = []
         uri_str = uri.value
 
+        normalized = self._normalize_uri(uri_str)
+
         try:
-            parsed = urlparse(uri_str)
+            parsed = urlparse(normalized)
         except Exception:
             return VpnUriValidationResult.failure(
                 [ValidationError("Invalid URI format")]

@@ -14,6 +14,7 @@ class TagResponse(BaseModel):
 class VpnSourceListItemResponse(BaseModel):
     id: UUID
     name: str
+    uri: str
     description: str | None
     is_active: bool
     tags: list[TagResponse]

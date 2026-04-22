@@ -99,7 +99,7 @@ class TestVpnSourcesEndpoints:
         assert "id" in data
 
     @pytest.mark.asyncio
-    async def test_list_vpn_sources_not_returns_uri(
+    async def test_list_vpn_sources_returns_uri(
         self, client: AsyncClient, auth_headers
     ):
         create_response = await client.post(
@@ -119,7 +119,8 @@ class TestVpnSourcesEndpoints:
         data = list_response.json()
         assert len(data["items"]) > 0
         item = data["items"][0]
-        assert "uri" not in item
+        assert "uri" in item
+        assert item["uri"].startswith("vless://")
 
     @pytest.mark.asyncio
     async def test_get_vpn_source_by_id_returns_uri(
