@@ -2,11 +2,11 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-COPY requirements.txt .
+COPY pyproject.toml .
 
-RUN uv pip install --system --no-cache-dir -r requirements.txt
+RUN uv sync --no-dev --no-editable
 
 FROM python:3.12-slim AS runtime
 
@@ -14,8 +14,7 @@ WORKDIR /app
 
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /app/.venv /app/.venv
 
 COPY src/ ./src/
 COPY alembic.ini ./alembic.ini
@@ -28,6 +27,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
+ENV PATH="/app/.venv/bin:$PATH"
 
 USER appuser
 

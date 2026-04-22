@@ -20,3 +20,4 @@ tests
 .kilo
 .kilocodeignore
 kilo.jsonc
+uv.lock
