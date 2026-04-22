@@ -20,6 +20,7 @@ class HappCryptoAdapter(HappCryptoAdapterPort):
 
     async def encrypt_link(self, subscription_url: str) -> str:
         payload = {"url": subscription_url}
+        logger.debug("HAPP encrypt_link request: url=%s", subscription_url)
 
         try:
             async with httpx.AsyncClient() as client:
@@ -31,9 +32,11 @@ class HappCryptoAdapter(HappCryptoAdapterPort):
                 response.raise_for_status()
 
                 data = response.json()
+                logger.debug("HAPP API response: %s", data)
                 encrypted_link = data.get("url")
 
                 if not encrypted_link:
+                    logger.error("HAPP API response missing 'url' key: %s", data)
                     raise ValueError("HAPP API returned empty encrypted link")
 
                 logger.info(
