@@ -1,3 +1,7 @@
+from src.infrastructure.db.models.subscription_issue import (
+    SubscriptionIssueItemModel,
+    SubscriptionIssueModel,
+)
 from src.infrastructure.db.models.vpn_source import (
     Base,
     VpnSourceModel,
@@ -10,4 +14,6 @@ __all__ = [
     "VpnSourceModel",
     "VpnSourceTagModel",
     "VpnSourceTagAssociationModel",
+    "SubscriptionIssueModel",
+    "SubscriptionIssueItemModel",
 ]
