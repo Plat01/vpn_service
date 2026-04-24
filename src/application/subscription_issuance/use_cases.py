@@ -71,6 +71,9 @@ class CreateEncryptedSubscriptionUseCase:
             created_at=now,
             created_by=dto.created_by,
             tags_used=dto.tags,
+            metadata=dto.metadata,
+            behavior=dto.behavior,
+            provider_id=dto.provider_id,
         )
 
         created_subscription = await self._subscription_repo.create(subscription_issue)
@@ -87,9 +90,6 @@ class CreateEncryptedSubscriptionUseCase:
         ]
 
         await self._item_repo.create_batch(items)
-
-        vpn_uris = [source.uri.value for source in vpn_sources]
-        config_content = self._config_generator.generate(vpn_uris)
 
         subscription_url = (
             f"{settings.subscription_base_url}/api/v1/subscriptions/{public_id}"
@@ -179,7 +179,14 @@ class GetSubscriptionConfigUseCase:
             )
             return False, "No active VPN sources available"
 
-        config_content = self._config_generator.generate(vpn_uris)
+        config_content = self._config_generator.generate(
+            vpn_uris=vpn_uris,
+            metadata=subscription.metadata,
+            behavior=subscription.behavior,
+            provider_id=subscription.provider_id,
+            expires_at=subscription.expires_at,
+            public_id=public_id,
+        )
 
         logger.info(
             "Subscription served: public_id=%s, vpn_uris_count=%d",

@@ -7,7 +7,6 @@ from src.application.vpn_catalog.dto import (
     BatchCreateResultDTO,
     BatchCreateVpnSourceDTO,
     CreateVpnSourceDTO,
-    CreateTagDTO,
     TagDTO,
     UpdateVpnSourceDTO,
     VpnSourceDTO,
@@ -19,9 +18,8 @@ from src.domain.vpn_catalog.repositories import (
     VpnSourceRepository,
     VpnSourceTagRepository,
 )
-from src.domain.vpn_catalog.validation_errors import ValidationError
 from src.domain.vpn_catalog.validators import VpnUriValidator
-from src.domain.vpn_catalog.value_objects import TagId, TagSlug, VpnSourceId, VpnUri
+from src.domain.vpn_catalog.value_objects import VpnSourceId, VpnUri
 
 logger = logging.getLogger(__name__)
 

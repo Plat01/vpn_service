@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import UUID
 
 from src.domain.vpn_catalog.value_objects import TagId, TagSlug, VpnSourceId, VpnUri
 

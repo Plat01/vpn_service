@@ -1,6 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
+
+from src.domain.subscription_issuance.value_objects import (
+    SubscriptionBehavior,
+    SubscriptionMetadata,
+)
 
 
 @dataclass
@@ -9,6 +14,9 @@ class CreateEncryptedSubscriptionDTO:
     ttl_hours: int
     created_by: str
     max_devices: int | None = None
+    metadata: SubscriptionMetadata | None = None
+    behavior: SubscriptionBehavior | None = None
+    provider_id: str | None = None
 
 
 @dataclass

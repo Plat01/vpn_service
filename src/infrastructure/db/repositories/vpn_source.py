@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -10,7 +10,6 @@ from src.domain.vpn_catalog.repositories import VpnSourceRepository
 from src.domain.vpn_catalog.value_objects import TagId, TagSlug, VpnSourceId, VpnUri
 from src.infrastructure.db.models import (
     VpnSourceModel,
-    VpnSourceTagAssociationModel,
     VpnSourceTagModel,
 )
 

@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from uuid import UUID
 
 from src.domain.subscription_issuance.value_objects import (
+    SubscriptionBehavior,
     SubscriptionIssueId,
     SubscriptionIssueItemId,
+    SubscriptionMetadata,
     SubscriptionStatus,
 )
 from src.domain.vpn_catalog.value_objects import VpnSourceId
@@ -20,6 +21,9 @@ class SubscriptionIssue:
     created_at: datetime
     created_by: str
     tags_used: list[str]
+    metadata: SubscriptionMetadata | None = None
+    behavior: SubscriptionBehavior | None = None
+    provider_id: str | None = None
     encrypted_link: str | None = None
     revoked_at: datetime | None = None
 

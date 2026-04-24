@@ -63,4 +63,4 @@ class HappCryptoAdapter(HappCryptoAdapterPort):
             logger.error(
                 "HAPP API request error: url=%s, error=%s", self._api_url, str(e)
             )
-            raise ValueError(f"HAPP encryption failed: request error") from e
+            raise ValueError("HAPP encryption failed: request error") from e

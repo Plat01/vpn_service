@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -14,10 +14,18 @@ from src.domain.subscription_issuance.value_objects import (
     SubscriptionIssueId,
     SubscriptionStatus,
 )
-from src.domain.vpn_catalog.entities import VpnSource, VpnSourceTag
-from src.domain.vpn_catalog.value_objects import VpnSourceId, VpnUri, TagId, TagSlug
+from src.domain.vpn_catalog.entities import VpnSource
+from src.domain.vpn_catalog.value_objects import VpnSourceId, VpnUri
+from src.infrastructure.subscription.happ_metadata_generator import (
+    HappMetadataGenerator,
+)
 from src.infrastructure.subscription.url_generator import TextListConfigGenerator
 from src.infrastructure.time.provider import SystemTimeProvider
+
+
+def _get_config_generator() -> TextListConfigGenerator:
+    metadata_generator = HappMetadataGenerator()
+    return TextListConfigGenerator(metadata_generator)
 
 
 class TestCreateEncryptedSubscriptionUseCase:
@@ -30,7 +38,7 @@ class TestCreateEncryptedSubscriptionUseCase:
         item_repo = AsyncMock()
         crypto_adapter = AsyncMock()
         time_provider = SystemTimeProvider()
-        config_generator = TextListConfigGenerator()
+        config_generator = _get_config_generator()
 
         use_case = CreateEncryptedSubscriptionUseCase(
             vpn_source_repo=vpn_source_repo,
@@ -87,10 +95,10 @@ class TestCreateEncryptedSubscriptionUseCase:
         crypto_adapter = AsyncMock()
         crypto_adapter.encrypt_link.return_value = "happ://crypt5/test123"
 
-        time_provider = AsyncMock()
+        time_provider = MagicMock()
         time_provider.now.return_value = now
 
-        config_generator = TextListConfigGenerator()
+        config_generator = _get_config_generator()
 
         use_case = CreateEncryptedSubscriptionUseCase(
             vpn_source_repo=vpn_source_repo,
@@ -130,8 +138,8 @@ class TestGetSubscriptionConfigUseCase:
 
         item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
-        time_provider = AsyncMock()
-        config_generator = TextListConfigGenerator()
+        time_provider = MagicMock()
+        config_generator = _get_config_generator()
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
@@ -166,10 +174,10 @@ class TestGetSubscriptionConfigUseCase:
 
         item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
-        time_provider = AsyncMock()
+        time_provider = MagicMock()
         time_provider.now.return_value = now
 
-        config_generator = TextListConfigGenerator()
+        config_generator = _get_config_generator()
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
@@ -205,10 +213,10 @@ class TestGetSubscriptionConfigUseCase:
 
         item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
-        time_provider = AsyncMock()
+        time_provider = MagicMock()
         time_provider.now.return_value = now
 
-        config_generator = TextListConfigGenerator()
+        config_generator = _get_config_generator()
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,

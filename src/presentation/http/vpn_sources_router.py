@@ -6,14 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from src.application.vpn_catalog.dto import (
     BatchCreateVpnSourceDTO,
     CreateVpnSourceDTO,
-    CreateTagDTO,
-    TagDTO,
     UpdateVpnSourceDTO,
     VpnSourceFilterDTO,
-)
-from src.application.vpn_catalog.tag_use_cases import (
-    CreateTagUseCase,
-    GetAllTagsUseCase,
 )
 from src.application.vpn_catalog.use_cases import (
     BatchCreateVpnSourcesUseCase,
@@ -38,10 +32,7 @@ from src.presentation.http.dto import (
     BatchCreateFailureResponse,
     BatchCreateRequest,
     BatchCreateResponse,
-    BatchCreateVpnSourceRequest,
-    CreateTagRequest,
     CreateVpnSourceRequest,
-    TagListResponse,
     TagResponse,
     UpdateVpnSourceRequest,
     VpnSourceDetailResponse,

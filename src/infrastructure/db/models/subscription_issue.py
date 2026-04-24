@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.db.models.vpn_source import Base
@@ -29,6 +29,9 @@ class SubscriptionIssueModel(Base):
     tags_used: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
+    meta_data: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    behavior: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     encrypted_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

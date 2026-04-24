@@ -12,6 +12,9 @@ from src.infrastructure.db.repositories import (
     SqlAlchemySubscriptionIssueRepository,
     SqlAlchemyVpnSourceRepository,
 )
+from src.infrastructure.subscription.happ_metadata_generator import (
+    HappMetadataGenerator,
+)
 from src.infrastructure.subscription.url_generator import TextListConfigGenerator
 from src.infrastructure.time.provider import SystemTimeProvider
 from src.infrastructure.db.database import get_session
@@ -37,8 +40,14 @@ def get_item_repo(
     return SqlAlchemySubscriptionIssueItemRepository(session)
 
 
-def get_config_generator() -> TextListConfigGenerator:
-    return TextListConfigGenerator()
+def get_metadata_generator() -> HappMetadataGenerator:
+    return HappMetadataGenerator()
+
+
+def get_config_generator(
+    metadata_generator: HappMetadataGenerator = Depends(get_metadata_generator),
+) -> TextListConfigGenerator:
+    return TextListConfigGenerator(metadata_generator)
 
 
 def get_time_provider() -> SystemTimeProvider:
