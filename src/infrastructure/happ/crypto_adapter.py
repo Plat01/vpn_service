@@ -33,10 +33,12 @@ class HappCryptoAdapter(HappCryptoAdapterPort):
 
                 data = response.json()
                 logger.debug("HAPP API response: %s", data)
-                encrypted_link = data.get("url")
+                encrypted_link = data.get("encrypted_link")
 
                 if not encrypted_link:
-                    logger.error("HAPP API response missing 'url' key: %s", data)
+                    logger.error(
+                        "HAPP API response missing 'encrypted_link' key: %s", data
+                    )
                     raise ValueError("HAPP API returned empty encrypted link")
 
                 logger.info(
