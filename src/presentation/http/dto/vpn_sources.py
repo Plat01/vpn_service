@@ -87,3 +87,34 @@ class CreateTagRequest(BaseModel):
 
 class TagListResponse(BaseModel):
     items: list[TagResponse]
+
+
+class SyncTextFailureResponse(BaseModel):
+    line: int
+    raw: str
+    error: str
+
+
+class SyncTextPreviewItem(BaseModel):
+    id: UUID | None
+    name: str
+    uri: str
+    action: str
+    tags: list[TagResponse] = Field(default_factory=list)
+
+
+class SyncTextResponse(BaseModel):
+    dry_run: bool
+    mode: str
+    import_group: str
+    tags: list[str]
+    parsed_count: int
+    valid_count: int
+    invalid_count: int
+    to_create_count: int
+    to_update_count: int
+    to_deactivate_count: int
+    created: list[SyncTextPreviewItem] = Field(default_factory=list)
+    updated: list[SyncTextPreviewItem] = Field(default_factory=list)
+    deactivated: list[SyncTextPreviewItem] = Field(default_factory=list)
+    failed: list[SyncTextFailureResponse] = Field(default_factory=list)

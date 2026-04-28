@@ -60,6 +60,7 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
             uri=vpn_source.uri.value,
             description=vpn_source.description,
             is_active=vpn_source.is_active,
+            import_group=vpn_source.import_group,
             created_at=vpn_source.created_at,
             updated_at=vpn_source.updated_at,
         )
@@ -112,6 +113,7 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
                 uri=source.uri.value,
                 description=source.description,
                 is_active=source.is_active,
+                import_group=source.import_group,
                 created_at=source.created_at,
                 updated_at=source.updated_at,
             )
@@ -125,6 +127,69 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
             await self._session.refresh(model, ["tags"])
 
         return [self._model_to_entity(model) for model in models]
+
+    async def get_by_uri(
+        self, uri: str, import_group: str | None = None
+    ) -> VpnSource | None:
+        stmt = select(VpnSourceModel).where(VpnSourceModel.uri == uri)
+        if import_group:
+            stmt = stmt.where(VpnSourceModel.import_group == import_group)
+        stmt = stmt.options(selectinload(VpnSourceModel.tags))
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        return self._model_to_entity(model) if model else None
+
+    async def get_all_by_import_group(
+        self, import_group: str, is_active: bool | None = None
+    ) -> list[VpnSource]:
+        stmt = select(VpnSourceModel).where(
+            VpnSourceModel.import_group == import_group
+        )
+        if is_active is not None:
+            stmt = stmt.where(VpnSourceModel.is_active == is_active)
+        stmt = stmt.options(selectinload(VpnSourceModel.tags))
+        result = await self._session.execute(stmt)
+        models = result.scalars().unique().all()
+        return [self._model_to_entity(m) for m in models]
+
+    async def deactivate_batch(self, vpn_source_ids: list[UUID]) -> int:
+        stmt = (
+            update(VpnSourceModel)
+            .where(VpnSourceModel.id.in_(vpn_source_ids))
+            .values(is_active=False, updated_at=datetime.now(timezone.utc))
+        )
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount
+
+    async def update_batch(self, vpn_sources: list[VpnSource]) -> list[VpnSource]:
+        updated_models = []
+        for source in vpn_sources:
+            stmt = (
+                update(VpnSourceModel)
+                .where(VpnSourceModel.id == source.id.value)
+                .values(
+                    name=source.name,
+                    uri=source.uri.value,
+                    description=source.description,
+                    is_active=source.is_active,
+                    import_group=source.import_group,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            await self._session.execute(stmt)
+
+        await self._session.flush()
+
+        ids = [s.id.value for s in vpn_sources]
+        stmt = (
+            select(VpnSourceModel)
+            .where(VpnSourceModel.id.in_(ids))
+            .options(selectinload(VpnSourceModel.tags))
+        )
+        result = await self._session.execute(stmt)
+        models = result.scalars().unique().all()
+        return [self._model_to_entity(m) for m in models]
 
     def _model_to_entity(self, model: VpnSourceModel) -> VpnSource:
         tags = [
@@ -143,6 +208,7 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
             uri=VpnUri(value=model.uri),
             description=model.description,
             is_active=model.is_active,
+            import_group=model.import_group or "default",
             created_at=model.created_at,
             updated_at=model.updated_at,
             tags=tags,

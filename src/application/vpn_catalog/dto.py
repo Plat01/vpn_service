@@ -89,3 +89,28 @@ class CreateTagDTO:
 class VpnSourceFilterDTO:
     tag_slugs: list[str] | None = None
     is_active: bool | None = None
+
+
+@dataclass
+class SyncTextFailureDTO:
+    line: int
+    raw: str
+    error: str
+
+
+@dataclass
+class SyncTextResultDTO:
+    dry_run: bool
+    mode: str
+    import_group: str
+    tags: list[str]
+    parsed_count: int
+    valid_count: int
+    invalid_count: int
+    to_create_count: int
+    to_update_count: int
+    to_deactivate_count: int
+    created: list[VpnSourceDTO] = field(default_factory=list)
+    updated: list[VpnSourceDTO] = field(default_factory=list)
+    deactivated: list[VpnSourceDTO] = field(default_factory=list)
+    failed: list[SyncTextFailureDTO] = field(default_factory=list)

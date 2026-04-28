@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from src.domain.vpn_catalog.entities import VpnSource, VpnSourceTag
+from src.domain.vpn_catalog.entities import VpnSource, VpnSourceImport, VpnSourceTag
 
 
 class VpnSourceRepository(ABC):
@@ -18,6 +18,18 @@ class VpnSourceRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_by_uri(
+        self, uri: str, import_group: str | None = None
+    ) -> VpnSource | None:
+        pass
+
+    @abstractmethod
+    async def get_all_by_import_group(
+        self, import_group: str, is_active: bool | None = None
+    ) -> list[VpnSource]:
+        pass
+
+    @abstractmethod
     async def create(self, vpn_source: VpnSource) -> VpnSource:
         pass
 
@@ -31,6 +43,30 @@ class VpnSourceRepository(ABC):
 
     @abstractmethod
     async def create_batch(self, vpn_sources: list[VpnSource]) -> list[VpnSource]:
+        pass
+
+    @abstractmethod
+    async def deactivate_batch(self, vpn_source_ids: list[UUID]) -> int:
+        pass
+
+    @abstractmethod
+    async def update_batch(self, vpn_sources: list[VpnSource]) -> list[VpnSource]:
+        pass
+
+
+class VpnSourceImportRepository(ABC):
+    @abstractmethod
+    async def create(self, import_: VpnSourceImport) -> VpnSourceImport:
+        pass
+
+    @abstractmethod
+    async def get_by_id(self, import_id: UUID) -> VpnSourceImport | None:
+        pass
+
+    @abstractmethod
+    async def get_recent(
+        self, import_group: str | None = None, limit: int = 50
+    ) -> list[VpnSourceImport]:
         pass
 
 

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import UUID, uuid4
 
 from src.application.vpn_catalog.dto import (
@@ -7,19 +8,23 @@ from src.application.vpn_catalog.dto import (
     BatchCreateResultDTO,
     BatchCreateVpnSourceDTO,
     CreateVpnSourceDTO,
+    SyncTextFailureDTO,
+    SyncTextResultDTO,
     TagDTO,
     UpdateVpnSourceDTO,
     VpnSourceDTO,
     VpnSourceFilterDTO,
     VpnSourceListItemDTO,
 )
-from src.domain.vpn_catalog.entities import VpnSource, VpnSourceTag
+from src.domain.vpn_catalog.entities import VpnSource, VpnSourceImport, VpnSourceTag
 from src.domain.vpn_catalog.repositories import (
+    VpnSourceImportRepository,
     VpnSourceRepository,
     VpnSourceTagRepository,
 )
 from src.domain.vpn_catalog.validators import VpnUriValidator
 from src.domain.vpn_catalog.value_objects import VpnSourceId, VpnUri
+from src.infrastructure.parsers import PlainTextUriParser, ParsedUriDTO
 
 logger = logging.getLogger(__name__)
 
@@ -353,3 +358,232 @@ class DeleteVpnSourceUseCase:
             logger.info("VpnSource deleted: id=%s", vpn_source_id)
 
         return deleted
+
+
+class SyncVpnSourcesTextUseCase:
+    def __init__(
+        self,
+        vpn_source_repo: VpnSourceRepository,
+        tag_repo: VpnSourceTagRepository,
+        validator: VpnUriValidator,
+        import_repo: VpnSourceImportRepository,
+        parser: PlainTextUriParser | None = None,
+    ):
+        self._vpn_source_repo = vpn_source_repo
+        self._tag_repo = tag_repo
+        self._validator = validator
+        self._import_repo = import_repo
+        self._parser = parser or PlainTextUriParser()
+
+    async def execute(
+        self,
+        text: str,
+        mode: Literal["replace", "upsert", "append"],
+        import_group: str,
+        tags: list[str],
+        dry_run: bool,
+        deactivate_missing: bool,
+        ignore_invalid: bool,
+        name_strategy: Literal["fragment", "host", "line_number"],
+    ) -> SyncTextResultDTO:
+        parsed_items = self._parser.parse(text)
+        parsed_count = len(parsed_items)
+
+        valid_items: list[ParsedUriDTO] = []
+        failed_items: list[SyncTextFailureDTO] = []
+
+        for item in parsed_items:
+            vpn_uri = VpnUri(value=item.raw_uri)
+            result = self._validator.validate(vpn_uri)
+            if not result.is_valid:
+                error_messages = "; ".join(e.message for e in result.errors)
+                failed_items.append(
+                    SyncTextFailureDTO(
+                        line=item.line_number,
+                        raw=self._parser.mask_uri_for_logging(item.raw_uri),
+                        error=error_messages,
+                    )
+                )
+                continue
+            valid_items.append(item)
+
+        valid_count = len(valid_items)
+        invalid_count = len(failed_items)
+
+        if invalid_count > 0 and not ignore_invalid:
+            return SyncTextResultDTO(
+                dry_run=dry_run,
+                mode=mode,
+                import_group=import_group,
+                tags=tags,
+                parsed_count=parsed_count,
+                valid_count=valid_count,
+                invalid_count=invalid_count,
+                to_create_count=0,
+                to_update_count=0,
+                to_deactivate_count=0,
+                failed=failed_items,
+            )
+
+        tag_entities: list[VpnSourceTag] = []
+        if tags:
+            tag_entities = await self._tag_repo.get_by_slugs(tags)
+
+        existing_sources = await self._vpn_source_repo.get_all_by_import_group(
+            import_group, is_active=True
+        )
+        existing_uris = {s.uri.value for s in existing_sources}
+        existing_by_uri = {s.uri.value: s for s in existing_sources}
+
+        to_create: list[VpnSource] = []
+        to_update: list[VpnSource] = []
+        to_deactivate_ids: list[UUID] = []
+
+        now = datetime.now(timezone.utc)
+        seen_uris_in_text: set[str] = set()
+
+        for item in valid_items:
+            uri = item.raw_uri
+            seen_uris_in_text.add(uri)
+
+            name = self._resolve_name(item, name_strategy)
+
+            if uri in existing_uris:
+                existing = existing_by_uri[uri]
+                existing.name = name
+                existing.updated_at = now
+                existing.is_active = True
+                existing.tags = tag_entities
+                to_update.append(existing)
+            else:
+                new_source = VpnSource(
+                    id=VpnSourceId(value=uuid4()),
+                    name=name,
+                    uri=VpnUri(value=uri),
+                    is_active=True,
+                    import_group=import_group,
+                    created_at=now,
+                    updated_at=now,
+                    tags=tag_entities,
+                )
+                to_create.append(new_source)
+
+        if mode == "replace" and deactivate_missing:
+            for source in existing_sources:
+                if source.uri.value not in seen_uris_in_text:
+                    to_deactivate_ids.append(source.id.value)
+
+        to_create_count = len(to_create)
+        to_update_count = len(to_update)
+        to_deactivate_count = len(to_deactivate_ids)
+
+        created_dtos: list[VpnSourceDTO] = []
+        updated_dtos: list[VpnSourceDTO] = []
+        deactivated_dtos: list[VpnSourceDTO] = []
+
+        if not dry_run:
+            if to_create:
+                created = await self._vpn_source_repo.create_batch(to_create)
+                if tags:
+                    for source in created:
+                        tag_ids = [t.id.value for t in tag_entities]
+                        await self._tag_repo.assign_tags_to_source(source.id.value, tag_ids)
+                created_dtos = [self._source_to_dto(s) for s in created]
+
+            if to_update:
+                updated = await self._vpn_source_repo.update_batch(to_update)
+                if tags:
+                    for source in updated:
+                        tag_ids = [t.id.value for t in tag_entities]
+                        await self._tag_repo.assign_tags_to_source(source.id.value, tag_ids)
+                updated_dtos = [self._source_to_dto(s) for s in updated]
+
+            if to_deactivate_ids:
+                await self._vpn_source_repo.deactivate_batch(to_deactivate_ids)
+                deactivated = [s for s in existing_sources if s.id.value in to_deactivate_ids]
+                deactivated_dtos = [self._source_to_dto(s) for s in deactivated]
+
+            import_entity = VpnSourceImport(
+                id=uuid4(),
+                import_group=import_group,
+                mode=mode,
+                dry_run=dry_run,
+                total_count=parsed_count,
+                valid_count=valid_count,
+                invalid_count=invalid_count,
+                created_count=len(created_dtos),
+                updated_count=len(updated_dtos),
+                deactivated_count=len(deactivated_dtos),
+                failed_count=len(failed_items),
+                created_at=now,
+                error_summary={
+                    "failed": [
+                        {"line": f.line, "raw": f.raw, "error": f.error}
+                        for f in failed_items
+                    ]
+                } if failed_items else None,
+            )
+            await self._import_repo.create(import_entity)
+
+            logger.info(
+                "Sync completed: group=%s, mode=%s, created=%d, updated=%d, deactivated=%d, failed=%d",
+                import_group,
+                mode,
+                len(created_dtos),
+                len(updated_dtos),
+                len(deactivated_dtos),
+                len(failed_items),
+            )
+
+        return SyncTextResultDTO(
+            dry_run=dry_run,
+            mode=mode,
+            import_group=import_group,
+            tags=tags,
+            parsed_count=parsed_count,
+            valid_count=valid_count,
+            invalid_count=invalid_count,
+            to_create_count=to_create_count,
+            to_update_count=to_update_count,
+            to_deactivate_count=to_deactivate_count,
+            created=created_dtos,
+            updated=updated_dtos,
+            deactivated=deactivated_dtos,
+            failed=failed_items,
+        )
+
+    def _resolve_name(
+        self, item: ParsedUriDTO, strategy: Literal["fragment", "host", "line_number"]
+    ) -> str:
+        if strategy == "fragment" and item.name:
+            return item.name
+        if strategy == "host":
+            uri = item.raw_uri
+            if "://" in uri:
+                after_scheme = uri.split("://", 1)[1]
+                if "@" in after_scheme:
+                    host_port = after_scheme.split("@", 1)[1]
+                    host = host_port.split(":")[0].split("?")[0]
+                    return host
+            return f"source-{item.line_number}"
+        return f"source-{item.line_number}"
+
+    def _source_to_dto(self, source: VpnSource) -> VpnSourceDTO:
+        return VpnSourceDTO(
+            id=source.id.value,
+            name=source.name,
+            uri=source.uri.value,
+            description=source.description,
+            is_active=source.is_active,
+            created_at=source.created_at,
+            updated_at=source.updated_at,
+            tags=[
+                TagDTO(
+                    id=t.id.value,
+                    name=t.name,
+                    slug=t.slug.value,
+                    created_at=t.created_at,
+                )
+                for t in source.tags
+            ],
+        )
