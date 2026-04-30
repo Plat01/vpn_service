@@ -197,11 +197,11 @@
 #subscription-autoconnect-type: lowestdelay
 #subscription-ping-onopen-enabled: true
 
-vless://uuid@server1:443?...
-vless://uuid@server2:443?...
+vless://uuid@server1:443?...#Server Name 1
+vless://uuid@server2:443?...#Server Name 2
 ```
 
-Текстовый список с HAPP заголовками (metadata) и VPN URI.
+VPN URI включают name как fragment (`#name`). Если исходный URI содержал fragment, он заменяется на name из базы.
 
 **HAPP заголовки автоматически генерируются:**
 - `#subscription-userinfo` — включает `expire` из TTL

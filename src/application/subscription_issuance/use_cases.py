@@ -23,7 +23,10 @@ from src.domain.subscription_issuance.value_objects import (
 from src.domain.vpn_catalog.repositories import VpnSourceRepository
 from src.domain.vpn_catalog.value_objects import VpnSourceId
 from src.infrastructure.happ.crypto_adapter import HappCryptoAdapterPort
-from src.infrastructure.subscription.url_generator import SubscriptionConfigGenerator
+from src.infrastructure.subscription.url_generator import (
+    SubscriptionConfigGenerator,
+    VpnSourceInfo,
+)
 from src.infrastructure.time.provider import TimeProvider
 
 logger = logging.getLogger(__name__)
@@ -166,13 +169,15 @@ class GetSubscriptionConfigUseCase:
             subscription.id.value
         )
 
-        vpn_uris: list[str] = []
+        vpn_sources_info: list[VpnSourceInfo] = []
         for item in items:
             vpn_source = await self._vpn_source_repo.get_by_id(item.vpn_source_id.value)
             if vpn_source and vpn_source.is_active:
-                vpn_uris.append(vpn_source.uri.value)
+                vpn_sources_info.append(
+                    VpnSourceInfo(name=vpn_source.name, uri=vpn_source.uri.value)
+                )
 
-        if not vpn_uris:
+        if not vpn_sources_info:
             logger.warning(
                 "Subscription has no active VPN sources: public_id=%s",
                 public_id[:8] + "...",
@@ -180,7 +185,7 @@ class GetSubscriptionConfigUseCase:
             return False, "No active VPN sources available"
 
         config_content = self._config_generator.generate(
-            vpn_uris=vpn_uris,
+            vpn_sources=vpn_sources_info,
             metadata=subscription.metadata,
             behavior=subscription.behavior,
             provider_id=subscription.provider_id,
@@ -189,9 +194,9 @@ class GetSubscriptionConfigUseCase:
         )
 
         logger.info(
-            "Subscription served: public_id=%s, vpn_uris_count=%d",
+            "Subscription served: public_id=%s, vpn_sources_count=%d",
             public_id[:8] + "...",
-            len(vpn_uris),
+            len(vpn_sources_info),
         )
 
         return True, config_content
