@@ -17,6 +17,7 @@ from src.application.vpn_catalog.dto import (
     VpnSourceListItemDTO,
 )
 from src.domain.vpn_catalog.entities import VpnSource, VpnSourceImport, VpnSourceTag
+from src.domain.vpn_catalog.exceptions import TagNotFoundError
 from src.domain.vpn_catalog.repositories import (
     VpnSourceImportRepository,
     VpnSourceRepository,
@@ -125,6 +126,10 @@ class CreateVpnSourceUseCase:
         tags: list[VpnSourceTag] = []
         if dto.tags:
             tags = await self._tag_repo.get_by_slugs(dto.tags)
+            found_slugs = {tag.slug.value for tag in tags}
+            missing_slugs = [slug for slug in dto.tags if slug not in found_slugs]
+            if missing_slugs:
+                raise TagNotFoundError(missing_slugs)
 
         now = datetime.now(timezone.utc)
         vpn_source = VpnSource(
@@ -190,6 +195,20 @@ class BatchCreateVpnSourcesUseCase:
 
         valid_sources_to_create: list[VpnSource] = []
 
+        all_requested_slugs: set[str] = set()
+        for item in items:
+            if item.tags:
+                all_requested_slugs.update(item.tags)
+
+        all_tags_by_slug: dict[str, VpnSourceTag] = {}
+        if all_requested_slugs:
+            all_tags = await self._tag_repo.get_by_slugs(list(all_requested_slugs))
+            all_tags_by_slug = {tag.slug.value: tag for tag in all_tags}
+            found_slugs = set(all_tags_by_slug.keys())
+            missing_slugs = list(all_requested_slugs - found_slugs)
+            if missing_slugs:
+                raise TagNotFoundError(missing_slugs)
+
         for index, item in enumerate(items):
             vpn_uri = VpnUri(value=item.uri)
 
@@ -208,7 +227,7 @@ class BatchCreateVpnSourcesUseCase:
 
             tags: list[VpnSourceTag] = []
             if item.tags:
-                tags = await self._tag_repo.get_by_slugs(item.tags)
+                tags = [all_tags_by_slug[slug] for slug in item.tags if slug in all_tags_by_slug]
 
             now = datetime.now(timezone.utc)
             vpn_source = VpnSource(
@@ -307,6 +326,10 @@ class UpdateVpnSourceUseCase:
 
         if dto.tags is not None:
             tags = await self._tag_repo.get_by_slugs(dto.tags)
+            found_slugs = {tag.slug.value for tag in tags}
+            missing_slugs = [slug for slug in dto.tags if slug not in found_slugs]
+            if missing_slugs:
+                raise TagNotFoundError(missing_slugs)
             source.assign_tags(tags)
 
         source.updated_at = datetime.now(timezone.utc)
@@ -428,6 +451,10 @@ class SyncVpnSourcesTextUseCase:
         tag_entities: list[VpnSourceTag] = []
         if tags:
             tag_entities = await self._tag_repo.get_by_slugs(tags)
+            found_slugs = {tag.slug.value for tag in tag_entities}
+            missing_slugs = [slug for slug in tags if slug not in found_slugs]
+            if missing_slugs:
+                raise TagNotFoundError(missing_slugs)
 
         existing_sources = await self._vpn_source_repo.get_all_by_import_group(
             import_group, is_active=True

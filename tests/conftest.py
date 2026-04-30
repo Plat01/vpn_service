@@ -1,9 +1,14 @@
 
+import os
+
 import pytest
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from src.main import app
+
+load_dotenv()
 
 
 @pytest.fixture
@@ -21,4 +26,5 @@ async def async_client():
 
 @pytest.fixture
 def admin_credentials():
-    return {"username": "admin", "password": "change_me_in_production"}
+    password = os.getenv("ADMIN_PASSWORD", "change_me_in_production")
+    return {"username": "admin", "password": password}

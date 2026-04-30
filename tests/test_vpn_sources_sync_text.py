@@ -248,3 +248,21 @@ vless://abcd1234-1234-1234-1234-123456789abc@example.com:443#Server2
         data = response.json()
         assert data["invalid_count"] == 1
         assert len(data["failed"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_sync_text_nonexistent_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        text = "vless://12345678-1234-1234-1234-123456789abc@example.com:443#Test"
+        response = await client.put(
+            "/api/v1/admin/vpn-sources/sync-text",
+            content=text,
+            headers=auth_headers,
+            params={
+                "dry_run": True,
+                "tags": "nonexistent-tag",
+                "name_strategy": "fragment",
+            },
+        )
+        assert response.status_code == 400
+        assert "nonexistent-tag" in response.json()["detail"]
