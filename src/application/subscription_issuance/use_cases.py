@@ -1,4 +1,5 @@
 import logging
+from dataclasses import replace
 from datetime import timedelta
 from uuid import uuid4
 
@@ -156,14 +157,26 @@ class GetSubscriptionConfigUseCase:
                 public_id[:8] + "...",
                 subscription.expires_at.isoformat(),
             )
-            return False, "Subscription expired"
+            poison = self._poison_config(
+                subscription=subscription,
+                public_id=public_id,
+                server_name="Подписка истекла",
+                info_text="Подписка истекла — для продления перейдите в бот нажав на самолетик или обратитесь в поддержку",
+            )
+            return True, poison
 
         if subscription.is_revoked():
             logger.info(
                 "Subscription revoked: public_id=%s",
                 public_id[:8] + "...",
             )
-            return False, "Subscription revoked"
+            poison = self._poison_config(
+                subscription=subscription,
+                public_id=public_id,
+                server_name="Подписка отозвана",
+                info_text="Подписка отозвана — обратитесь в поддержку",
+            )
+            return True, poison
 
         items = await self._item_repo.get_by_subscription_issue_id(
             subscription.id.value
@@ -200,3 +213,36 @@ class GetSubscriptionConfigUseCase:
         )
 
         return True, config_content
+
+    def _poison_config(
+        self,
+        subscription: SubscriptionIssue,
+        public_id: str,
+        server_name: str,
+        info_text: str,
+    ) -> str:
+        dummy_uri = (
+            "vless://00000000-0000-0000-0000-000000000000"
+            "@expired.subscription:1"
+            "?type=tcp&security=none"
+        )
+        dummy_source = VpnSourceInfo(name=server_name, uri=dummy_uri)
+
+        metadata = subscription.metadata
+        if metadata and metadata.info_block:
+            metadata = replace(
+                metadata,
+                info_block=replace(
+                    metadata.info_block,
+                    text=info_text,
+                ),
+            )
+
+        return self._config_generator.generate(
+            vpn_sources=[dummy_source],
+            metadata=metadata,
+            behavior=subscription.behavior,
+            provider_id=subscription.provider_id,
+            expires_at=subscription.expires_at,
+            public_id=public_id,
+        )

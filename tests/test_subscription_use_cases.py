@@ -11,7 +11,9 @@ from src.application.subscription_issuance.use_cases import (
 )
 from src.domain.subscription_issuance.entities import SubscriptionIssue
 from src.domain.subscription_issuance.value_objects import (
+    InfoBlock,
     SubscriptionIssueId,
+    SubscriptionMetadata,
     SubscriptionStatus,
 )
 from src.domain.vpn_catalog.entities import VpnSource
@@ -153,7 +155,7 @@ class TestGetSubscriptionConfigUseCase:
             await use_case.execute(str(uuid4()))
 
     @pytest.mark.asyncio
-    async def test_execute_expired_subscription_returns_false(self):
+    async def test_execute_expired_subscription_returns_poison_config(self):
         now = datetime.now(timezone.utc)
         past_time = now - timedelta(hours=1)
 
@@ -189,11 +191,66 @@ class TestGetSubscriptionConfigUseCase:
 
         is_active, content = await use_case.execute(subscription.public_id)
 
-        assert is_active is False
-        assert "expired" in content.lower()
+        assert is_active is True
+        assert "Подписка истекла" in content
+        assert "00000000-0000-0000-0000-000000000000" in content
 
     @pytest.mark.asyncio
-    async def test_execute_revoked_subscription_returns_false(self):
+    async def test_execute_expired_subscription_overrides_info_text(self):
+        now = datetime.now(timezone.utc)
+        past_time = now - timedelta(hours=1)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=past_time,
+            max_devices=None,
+            created_at=now - timedelta(hours=25),
+            created_by="admin",
+            tags_used=["eu"],
+            metadata=SubscriptionMetadata(
+                profile_title="Test",
+                profile_update_interval=1,
+                support_url="https://t.me/test",
+                info_block=InfoBlock(
+                    color="blue",
+                    text="Original text",
+                    button_text="Support",
+                    button_link="https://t.me/test",
+                ),
+            ),
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        item_repo = AsyncMock()
+        vpn_source_repo = AsyncMock()
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        config_generator = _get_config_generator()
+
+        use_case = GetSubscriptionConfigUseCase(
+            subscription_repo=subscription_repo,
+            item_repo=item_repo,
+            vpn_source_repo=vpn_source_repo,
+            time_provider=time_provider,
+            config_generator=config_generator,
+        )
+
+        is_active, content = await use_case.execute(subscription.public_id)
+
+        assert is_active is True
+        assert "Подписка истекла" in content
+        assert "00000000-0000-0000-0000-000000000000" in content
+        assert "#sub-info-text: Подписка истекла — для продления обратитесь в поддержку" in content
+        assert "Original text" not in content
+
+    @pytest.mark.asyncio
+    async def test_execute_revoked_subscription_returns_poison_config(self):
         now = datetime.now(timezone.utc)
 
         subscription = SubscriptionIssue(
@@ -228,5 +285,6 @@ class TestGetSubscriptionConfigUseCase:
 
         is_active, content = await use_case.execute(subscription.public_id)
 
-        assert is_active is False
-        assert "revoked" in content.lower()
+        assert is_active is True
+        assert "Подписка отозвана" in content
+        assert "00000000-0000-0000-0000-000000000000" in content

@@ -209,10 +209,21 @@ VPN URI включают name как fragment (`#name`). Если исходны
 - Все metadata/behavior поля преобразуются в HAPP заголовки
 
 **Response (expired/revoked):**
+
+Вместо ошибки возвращается `HTTP 200` с валидным конфигом, содержащим один фиктивный сервер:
 ```
-HTTP 403 Forbidden
-{"detail": "Subscription expired"}
+#profile-title: OvalVPN
+#profile-update-interval: 1
+#subscription-userinfo: upload=0; download=0; total=0; expire=1746368937
+#support-url: https://t.me/OvalVPN_Support_Bot
+#sub-info-text: Подписка истекла — для продления обратитесь в поддержку
+#sub-expire: 1
+...
+
+vless://00000000-0000-0000-0000-000000000000@expired.subscription:1?type=tcp&security=none#Подписка истекла
 ```
+
+Это гарантирует, что мобильное приложение **перезапишет** локальный кеш конфигов и не сможет продолжать использовать VPN после истечения/отзыва подписки. Все HAPP-заголовки (поддержка, уведомления) сохраняются из оригинальной подписки.
 
 ---
 
@@ -422,8 +433,9 @@ curl https://vpn.example.com/api/v1/subscriptions/{public_id}
 ### TTL защита
 
 - TTL проверяется на сервере при каждом запросе подписки
-- Expired подписки возвращают HTTP 403
-- HAPP не имеет встроенного TTL — контроль полностью на сервере
+- Expired/revoked подписки возвращают `HTTP 200` с «отравленным» конфигом (один фиктивный сервер)
+- Мобильное приложение перезаписывает кеш, и рабочие VPN-серверы исчезают
+- Клиент не может продолжать использовать VPN после истечения подписки
 
 ### Metadata безопасность
 
