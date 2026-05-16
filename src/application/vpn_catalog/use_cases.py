@@ -8,6 +8,7 @@ from src.application.vpn_catalog.dto import (
     BatchCreateResultDTO,
     BatchCreateVpnSourceDTO,
     CreateVpnSourceDTO,
+    DeleteVpnSourcesByTagsResultDTO,
     SyncTextFailureDTO,
     SyncTextResultDTO,
     TagDTO,
@@ -381,6 +382,34 @@ class DeleteVpnSourceUseCase:
             logger.info("VpnSource deleted: id=%s", vpn_source_id)
 
         return deleted
+
+
+class DeleteVpnSourcesByTagsUseCase:
+    def __init__(
+        self,
+        vpn_source_repo: VpnSourceRepository,
+    ):
+        self._vpn_source_repo = vpn_source_repo
+
+    async def execute(self, tag_slugs: list[str]) -> DeleteVpnSourcesByTagsResultDTO:
+        sources = await self._vpn_source_repo.get_all(tag_slugs=tag_slugs)
+        if not sources:
+            return DeleteVpnSourcesByTagsResultDTO(
+                deleted_count=0, tag_slugs=tag_slugs
+            )
+
+        ids = [s.id.value for s in sources]
+        deleted = await self._vpn_source_repo.delete_batch(ids)
+
+        logger.info(
+            "VpnSources deleted by tags: deleted=%d, tags=%s",
+            deleted,
+            tag_slugs,
+        )
+
+        return DeleteVpnSourcesByTagsResultDTO(
+            deleted_count=deleted, tag_slugs=tag_slugs
+        )
 
 
 class SyncVpnSourcesTextUseCase:

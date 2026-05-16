@@ -86,6 +86,12 @@ class CreateTagDTO:
 
 
 @dataclass
+class DeleteVpnSourcesByTagsResultDTO:
+    deleted_count: int
+    tag_slugs: list[str]
+
+
+@dataclass
 class VpnSourceFilterDTO:
     tag_slugs: list[str] | None = None
     is_active: bool | None = None

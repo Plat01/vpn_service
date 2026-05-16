@@ -50,6 +50,10 @@ class VpnSourceRepository(ABC):
         pass
 
     @abstractmethod
+    async def delete_batch(self, vpn_source_ids: list[UUID]) -> int:
+        pass
+
+    @abstractmethod
     async def update_batch(self, vpn_sources: list[VpnSource]) -> list[VpnSource]:
         pass
 

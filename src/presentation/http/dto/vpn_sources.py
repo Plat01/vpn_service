@@ -89,6 +89,11 @@ class TagListResponse(BaseModel):
     items: list[TagResponse]
 
 
+class DeleteByTagsResponse(BaseModel):
+    deleted_count: int
+    tag_slugs: list[str]
+
+
 class SyncTextFailureResponse(BaseModel):
     line: int
     raw: str

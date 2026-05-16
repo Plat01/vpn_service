@@ -14,6 +14,7 @@ from src.application.vpn_catalog.use_cases import (
     BatchCreateVpnSourcesUseCase,
     CreateVpnSourceUseCase,
     DeleteVpnSourceUseCase,
+    DeleteVpnSourcesByTagsUseCase,
     GetAllVpnSourcesUseCase,
     GetVpnSourceByIdUseCase,
     SyncVpnSourcesTextUseCase,
@@ -38,6 +39,7 @@ from src.presentation.http.dto import (
     BatchCreateRequest,
     BatchCreateResponse,
     CreateVpnSourceRequest,
+    DeleteByTagsResponse,
     SyncTextFailureResponse,
     SyncTextPreviewItem,
     SyncTextResponse,
@@ -320,6 +322,32 @@ async def update_vpn_source(
         ],
         created_at=result.created_at,
         updated_at=result.updated_at,
+    )
+
+
+@router.delete(
+    "/vpn-sources/by-tags",
+    response_model=DeleteByTagsResponse,
+)
+async def delete_vpn_sources_by_tags(
+    admin: str = Depends(get_current_admin),
+    vpn_source_repo: VpnSourceRepository = Depends(get_vpn_source_repo),
+    tags: Annotated[str, Query(description="Comma-separated tag slugs")] = ...,
+):
+    tag_slugs = [t.strip() for t in tags.split(",") if t.strip()]
+
+    if not tag_slugs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one tag slug is required",
+        )
+
+    use_case = DeleteVpnSourcesByTagsUseCase(vpn_source_repo)
+    result = await use_case.execute(tag_slugs)
+
+    return DeleteByTagsResponse(
+        deleted_count=result.deleted_count,
+        tag_slugs=result.tag_slugs,
     )
 
 

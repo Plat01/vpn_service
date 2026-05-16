@@ -152,6 +152,12 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
         models = result.scalars().unique().all()
         return [self._model_to_entity(m) for m in models]
 
+    async def delete_batch(self, vpn_source_ids: list[UUID]) -> int:
+        stmt = delete(VpnSourceModel).where(VpnSourceModel.id.in_(vpn_source_ids))
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount
+
     async def deactivate_batch(self, vpn_source_ids: list[UUID]) -> int:
         stmt = (
             update(VpnSourceModel)
