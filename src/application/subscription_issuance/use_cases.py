@@ -129,13 +129,11 @@ class GetSubscriptionConfigUseCase:
     def __init__(
         self,
         subscription_repo: SubscriptionIssueRepository,
-        item_repo: SubscriptionIssueItemRepository,
         vpn_source_repo: VpnSourceRepository,
         time_provider: TimeProvider,
         config_generator: SubscriptionConfigGenerator,
     ):
         self._subscription_repo = subscription_repo
-        self._item_repo = item_repo
         self._vpn_source_repo = vpn_source_repo
         self._time_provider = time_provider
         self._config_generator = config_generator
@@ -178,17 +176,15 @@ class GetSubscriptionConfigUseCase:
             )
             return True, poison
 
-        items = await self._item_repo.get_by_subscription_issue_id(
-            subscription.id.value
+        vpn_sources = await self._vpn_source_repo.get_all(
+            tag_slugs=subscription.tags_used,
+            is_active=True,
         )
 
-        vpn_sources_info: list[VpnSourceInfo] = []
-        for item in items:
-            vpn_source = await self._vpn_source_repo.get_by_id(item.vpn_source_id.value)
-            if vpn_source and vpn_source.is_active:
-                vpn_sources_info.append(
-                    VpnSourceInfo(name=vpn_source.name, uri=vpn_source.uri.value)
-                )
+        vpn_sources_info = [
+            VpnSourceInfo(name=s.name, uri=s.uri.value)
+            for s in vpn_sources
+        ]
 
         if not vpn_sources_info:
             logger.warning(

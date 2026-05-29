@@ -60,6 +60,7 @@ trojan://password123@warshaw.example.com:443?security=tls#Warsaw-Backup
 - `vmess://` — VMESS protocol
 - `trojan://` — Trojan protocol
 - `ss://` — Shadowsocks
+- `ssr://` — ShadowsocksR
 
 ---
 
@@ -386,7 +387,7 @@ curl -X PUT "http://localhost:8000/api/v1/admin/vpn-sources/sync-text?dry_run=fa
 | Максимум строк | 500 |
 | Длина import_group | 1-100 символов |
 | Теги должны существовать | Да (или пусто) |
-| URI формат | vless, vmess, trojan, ss |
+| URI формат | vless, vmess, trojan, ss, ssr |
 
 ---
 

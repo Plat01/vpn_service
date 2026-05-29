@@ -3,12 +3,8 @@ from fastapi.responses import PlainTextResponse
 
 from src.application.subscription_issuance.use_cases import GetSubscriptionConfigUseCase
 from src.domain.vpn_catalog.repositories import VpnSourceRepository
-from src.domain.subscription_issuance.repositories import (
-    SubscriptionIssueItemRepository,
-    SubscriptionIssueRepository,
-)
+from src.domain.subscription_issuance.repositories import SubscriptionIssueRepository
 from src.infrastructure.db.repositories import (
-    SqlAlchemySubscriptionIssueItemRepository,
     SqlAlchemySubscriptionIssueRepository,
     SqlAlchemyVpnSourceRepository,
 )
@@ -34,12 +30,6 @@ def get_subscription_repo(
     return SqlAlchemySubscriptionIssueRepository(session)
 
 
-def get_item_repo(
-    session: get_session = Depends(get_session),
-) -> SubscriptionIssueItemRepository:
-    return SqlAlchemySubscriptionIssueItemRepository(session)
-
-
 def get_metadata_generator() -> HappMetadataGenerator:
     return HappMetadataGenerator()
 
@@ -59,13 +49,11 @@ async def get_subscription_config(
     public_id: str,
     vpn_source_repo: VpnSourceRepository = Depends(get_vpn_source_repo),
     subscription_repo: SubscriptionIssueRepository = Depends(get_subscription_repo),
-    item_repo: SubscriptionIssueItemRepository = Depends(get_item_repo),
     config_generator: TextListConfigGenerator = Depends(get_config_generator),
     time_provider: SystemTimeProvider = Depends(get_time_provider),
 ):
     use_case = GetSubscriptionConfigUseCase(
         subscription_repo=subscription_repo,
-        item_repo=item_repo,
         vpn_source_repo=vpn_source_repo,
         time_provider=time_provider,
         config_generator=config_generator,

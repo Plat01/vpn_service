@@ -138,14 +138,12 @@ class TestGetSubscriptionConfigUseCase:
         subscription_repo = AsyncMock()
         subscription_repo.get_by_public_id.return_value = None
 
-        item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
         time_provider = MagicMock()
         config_generator = _get_config_generator()
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
-            item_repo=item_repo,
             vpn_source_repo=vpn_source_repo,
             time_provider=time_provider,
             config_generator=config_generator,
@@ -174,7 +172,6 @@ class TestGetSubscriptionConfigUseCase:
         subscription_repo.get_by_public_id.return_value = subscription
         subscription_repo.update.return_value = subscription
 
-        item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
         time_provider = MagicMock()
         time_provider.now.return_value = now
@@ -183,7 +180,6 @@ class TestGetSubscriptionConfigUseCase:
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
-            item_repo=item_repo,
             vpn_source_repo=vpn_source_repo,
             time_provider=time_provider,
             config_generator=config_generator,
@@ -226,7 +222,6 @@ class TestGetSubscriptionConfigUseCase:
         subscription_repo.get_by_public_id.return_value = subscription
         subscription_repo.update.return_value = subscription
 
-        item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
         time_provider = MagicMock()
         time_provider.now.return_value = now
@@ -235,7 +230,6 @@ class TestGetSubscriptionConfigUseCase:
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
-            item_repo=item_repo,
             vpn_source_repo=vpn_source_repo,
             time_provider=time_provider,
             config_generator=config_generator,
@@ -268,7 +262,6 @@ class TestGetSubscriptionConfigUseCase:
         subscription_repo = AsyncMock()
         subscription_repo.get_by_public_id.return_value = subscription
 
-        item_repo = AsyncMock()
         vpn_source_repo = AsyncMock()
         time_provider = MagicMock()
         time_provider.now.return_value = now
@@ -277,7 +270,6 @@ class TestGetSubscriptionConfigUseCase:
 
         use_case = GetSubscriptionConfigUseCase(
             subscription_repo=subscription_repo,
-            item_repo=item_repo,
             vpn_source_repo=vpn_source_repo,
             time_provider=time_provider,
             config_generator=config_generator,
@@ -288,3 +280,104 @@ class TestGetSubscriptionConfigUseCase:
         assert is_active is True
         assert "Подписка отозвана" in content
         assert "00000000-0000-0000-0000-000000000000" in content
+
+    @pytest.mark.asyncio
+    async def test_execute_active_subscription_returns_config(self):
+        now = datetime.now(timezone.utc)
+
+        vpn_source_1 = VpnSource(
+            id=VpnSourceId(value=uuid4()),
+            name="Server Alpha",
+            uri=VpnUri(value="vless://alpha@example.com:443"),
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+            tags=[],
+        )
+        vpn_source_2 = VpnSource(
+            id=VpnSourceId(value=uuid4()),
+            name="Server Beta",
+            uri=VpnUri(value="vless://beta@example.com:443"),
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+            tags=[],
+        )
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=now + timedelta(hours=24),
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["main"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+
+        vpn_source_repo = AsyncMock()
+        vpn_source_repo.get_all.return_value = [vpn_source_1, vpn_source_2]
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        config_generator = MagicMock()
+        config_generator.generate.return_value = "config-content"
+
+        use_case = GetSubscriptionConfigUseCase(
+            subscription_repo=subscription_repo,
+            vpn_source_repo=vpn_source_repo,
+            time_provider=time_provider,
+            config_generator=config_generator,
+        )
+
+        is_active, content = await use_case.execute(subscription.public_id)
+
+        assert is_active is True
+        assert content == "config-content"
+
+        vpn_source_repo.get_all.assert_called_once_with(
+            tag_slugs=["main"], is_active=True
+        )
+        config_generator.generate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_execute_active_subscription_no_sources(self):
+        now = datetime.now(timezone.utc)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=now + timedelta(hours=24),
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["nonexistent"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+
+        vpn_source_repo = AsyncMock()
+        vpn_source_repo.get_all.return_value = []
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        config_generator = _get_config_generator()
+
+        use_case = GetSubscriptionConfigUseCase(
+            subscription_repo=subscription_repo,
+            vpn_source_repo=vpn_source_repo,
+            time_provider=time_provider,
+            config_generator=config_generator,
+        )
+
+        is_active, content = await use_case.execute(subscription.public_id)
+
+        assert is_active is False
+        assert content == "No active VPN sources available"

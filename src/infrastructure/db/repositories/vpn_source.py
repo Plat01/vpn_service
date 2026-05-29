@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
+from sqlalchemy import asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,6 +33,8 @@ class SqlAlchemyVpnSourceRepository(VpnSourceRepository):
             stmt = stmt.join(VpnSourceModel.tags).where(
                 VpnSourceTagModel.slug.in_(tag_slugs)
             )
+
+        stmt = stmt.order_by(asc(VpnSourceModel.created_at))
 
         result = await self._session.execute(stmt)
         models = result.scalars().unique().all()

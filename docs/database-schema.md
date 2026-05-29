@@ -13,6 +13,7 @@
 | `uri` | TEXT | VPN URI (`vless://`, `trojan://`, etc.) |
 | `description` | TEXT | Описание (optional) |
 | `is_active` | BOOLEAN | Активность источника |
+| `import_group` | VARCHAR(100) | Группа для раздельного управления (default: `default`) |
 | `created_at` | TIMESTAMP WITH TIME ZONE | Дата создания |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | Дата последнего обновления |
 
@@ -66,6 +67,9 @@
 | `created_at` | TIMESTAMP WITH TIME ZONE | Дата создания |
 | `created_by` | VARCHAR(255) | Кто создал (admin username) |
 | `tags_used` | TEXT[] | Snapshot тегов для выбора VPN |
+| `meta_data` | JSONB | HAPP metadata заголовки (profile_title, announce, etc.) |
+| `behavior` | JSONB | HAPP behavior параметры (autoconnect, fallback_url, etc.) |
+| `provider_id` | VARCHAR(255) | HAPP provider ID (optional) |
 | `encrypted_link` | TEXT | HAPP зашифрованная ссылка |
 | `revoked_at` | TIMESTAMP WITH TIME ZONE | Дата отзыва (если revoked) |
 
@@ -94,6 +98,28 @@ VPN источники, включённые в подписку.
 
 ---
 
+### vpn_source_imports
+
+История операций массовой синхронизации VPN источников.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `import_group` | VARCHAR(100) | Группа синхронизации |
+| `mode` | VARCHAR(20) | Режим: `replace`, `upsert`, `append` |
+| `dry_run` | BOOLEAN | Preview режим |
+| `total_count` | INTEGER | Всего строк |
+| `valid_count` | INTEGER | Валидных URI |
+| `invalid_count` | INTEGER | Невалидных URI |
+| `created_count` | INTEGER | Создано источников |
+| `updated_count` | INTEGER | Обновлено источников |
+| `deactivated_count` | INTEGER | Деактивировано источников |
+| `failed_count` | INTEGER | Ошибок обработки |
+| `created_at` | TIMESTAMP WITH TIME ZONE | Дата операции |
+| `error_summary` | TEXT | JSON с деталями ошибок |
+
+---
+
 ## ER Diagram
 
 ```
@@ -102,9 +128,10 @@ vpn_source_tags
     │ (many-to-many via vpn_source_tag_associations)
     │
 vpn_sources ←── subscription_issue_items ──→ subscription_issues
-    │                      │                        │
-    │                      │                        │
-    └                      └                        └
+    │
+    │ (import_group)
+    │
+vpn_source_imports
 ```
 
 ---
@@ -146,11 +173,11 @@ vpn_sources ←── subscription_issue_items ──→ subscription_issues
 
 ### vpn_sources
 
-| id | name | uri | is_active |
-|----|------|-----|-----------|
-| uuid-1 | RU Server 1 | vless://... | true |
-| uuid-2 | RU Server 2 | vless://... | true |
-| uuid-3 | EU Server 1 | trojan://... | true |
+| id | name | uri | is_active | import_group |
+|----|------|-----|-----------|--------------|
+| uuid-1 | RU Server 1 | vless://... | true | default |
+| uuid-2 | RU Server 2 | vless://... | true | default |
+| uuid-3 | EU Server 1 | trojan://... | true | default |
 
 ### vpn_source_tags
 
@@ -171,9 +198,9 @@ vpn_sources ←── subscription_issue_items ──→ subscription_issues
 
 ### subscription_issues
 
-| id | public_id | status | expires_at | tags_used | encrypted_link |
-|----|-----------|--------|------------|-----------|----------------|
-| sub-1 | pub-uuid | active | 2026-04-25 | ["bypass"] | happ://crypt5/... |
+| id | public_id | status | expires_at | tags_used | meta_data | behavior | encrypted_link |
+|----|-----------|--------|------------|-----------|-----------|----------|----------------|
+| sub-1 | pub-uuid | active | 2026-04-25 | ["bypass"] | `{"profile_title": "My VPN"}` | `{"autoconnect": true}` | happ://crypt5/... |
 
 ### subscription_issue_items
 
@@ -194,6 +221,15 @@ vpn_sources ←── subscription_issue_items ──→ subscription_issues
 
 - Создает `subscription_issues`, `subscription_issue_items`
 - FK связи с CASCADE delete
+
+### 003_add_subscription_metadata.py
+
+- Добавляет `meta_data` (JSONB), `behavior` (JSONB), `provider_id` в `subscription_issues`
+
+### 004_add_import_group_and_imports.py
+
+- Добавляет `import_group` в `vpn_sources`
+- Создает `vpn_source_imports` для истории синхронизаций
 
 ---
 
