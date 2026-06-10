@@ -4,10 +4,14 @@ from uuid import uuid4
 
 import pytest
 
-from src.application.subscription_issuance.dto import CreateEncryptedSubscriptionDTO
+from src.application.subscription_issuance.dto import (
+    CreateEncryptedSubscriptionDTO,
+    RenewSubscriptionDTO,
+)
 from src.application.subscription_issuance.use_cases import (
     CreateEncryptedSubscriptionUseCase,
     GetSubscriptionConfigUseCase,
+    RenewSubscriptionUseCase,
 )
 from src.domain.subscription_issuance.entities import SubscriptionIssue
 from src.domain.subscription_issuance.value_objects import (
@@ -15,6 +19,7 @@ from src.domain.subscription_issuance.value_objects import (
     SubscriptionIssueId,
     SubscriptionMetadata,
     SubscriptionStatus,
+    TrafficInfo,
 )
 from src.domain.vpn_catalog.entities import VpnSource
 from src.domain.vpn_catalog.value_objects import VpnSourceId, VpnUri
@@ -240,7 +245,7 @@ class TestGetSubscriptionConfigUseCase:
         assert is_active is True
         assert "Подписка истекла" in content
         assert "00000000-0000-0000-0000-000000000000" in content
-        assert "#sub-info-text: Подписка истекла — для продления обратитесь в поддержку" in content
+        assert "#sub-info-text: Подписка истекла — для продления перейдите в бот нажав на самолетик или обратитесь в поддержку" in content
         assert "Original text" not in content
 
     @pytest.mark.asyncio
@@ -381,3 +386,293 @@ class TestGetSubscriptionConfigUseCase:
 
         assert is_active is False
         assert content == "No active VPN sources available"
+
+
+class TestRenewSubscriptionUseCase:
+    @pytest.mark.asyncio
+    async def test_renew_success_active(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=24,
+            updated_by="admin",
+        )
+
+        result = await use_case.execute(dto)
+
+        assert result.public_id == subscription.public_id
+        assert result.vpn_sources_count == 0
+
+        expected_expires = now + timedelta(hours=34)
+        assert result.expires_at == expected_expires
+
+        subscription_repo.get_by_public_id.assert_called_once_with(
+            subscription.public_id
+        )
+        subscription_repo.update.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_renew_success_expired(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now - timedelta(hours=5)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.expired,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=24,
+            updated_by="admin",
+        )
+
+        result = await use_case.execute(dto)
+
+        assert result.vpn_sources_count == 0
+        assert result.expires_at == now + timedelta(hours=24)
+
+        # Verify the entity's status was reactivated internally
+        assert subscription.status == SubscriptionStatus.active
+
+    @pytest.mark.asyncio
+    async def test_renew_revoked_raises(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.revoked,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+            revoked_at=now,
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=24,
+            updated_by="admin",
+        )
+
+        with pytest.raises(ValueError, match="Cannot renew revoked subscription"):
+            await use_case.execute(dto)
+
+        subscription_repo.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_renew_not_found_raises(self):
+        now = datetime.now(timezone.utc)
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = None
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        dto = RenewSubscriptionDTO(
+            public_id="nonexistent-public-id",
+            additional_hours=24,
+            updated_by="admin",
+        )
+
+        with pytest.raises(ValueError, match="Subscription not found"):
+            await use_case.execute(dto)
+
+        subscription_repo.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_renew_update_max_devices(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=24,
+            updated_by="admin",
+            max_devices=5,
+        )
+
+        result = await use_case.execute(dto)
+
+        assert subscription.max_devices == 5
+        assert result.vpn_sources_count == 0
+
+    @pytest.mark.asyncio
+    async def test_renew_update_traffic_info(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        traffic = TrafficInfo(upload=100, download=200, total=300)
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=24,
+            updated_by="admin",
+            traffic_info=traffic,
+        )
+
+        result = await use_case.execute(dto)
+
+        assert subscription.metadata is not None
+        assert subscription.metadata.traffic_info == traffic
+        assert result.vpn_sources_count == 0
+
+    @pytest.mark.asyncio
+    async def test_renew_all_params(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription_repo = AsyncMock()
+        subscription_repo.get_by_public_id.return_value = subscription
+        subscription_repo.update.return_value = subscription
+
+        time_provider = MagicMock()
+        time_provider.now.return_value = now
+
+        use_case = RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        )
+
+        traffic = TrafficInfo(upload=500, download=1000, total=1500)
+        dto = RenewSubscriptionDTO(
+            public_id=subscription.public_id,
+            additional_hours=48,
+            updated_by="admin",
+            max_devices=10,
+            traffic_info=traffic,
+        )
+
+        result = await use_case.execute(dto)
+
+        assert result.expires_at == now + timedelta(hours=58)
+        assert subscription.max_devices == 10
+        assert subscription.metadata.traffic_info == traffic
+        assert result.vpn_sources_count == 0
+
+        subscription_repo.update.assert_called_once()

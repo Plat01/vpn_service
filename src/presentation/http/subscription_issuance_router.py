@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.application.subscription_issuance.dto import CreateEncryptedSubscriptionDTO
+from src.application.subscription_issuance.dto import (
+    CreateEncryptedSubscriptionDTO,
+    RenewSubscriptionDTO,
+)
 from src.application.subscription_issuance.use_cases import (
     CreateEncryptedSubscriptionUseCase,
+    RenewSubscriptionUseCase,
 )
 from src.domain.subscription_issuance.value_objects import (
     ExpireNotification,
@@ -31,6 +35,7 @@ from src.presentation.http.dependencies import get_current_admin
 from src.presentation.http.dto import (
     CreateEncryptedSubscriptionRequest,
     EncryptedSubscriptionResponse,
+    RenewSubscriptionRequest,
 )
 from src.infrastructure.db.database import get_session
 
@@ -155,6 +160,55 @@ async def create_encrypted_subscription(
 
     try:
         result = await use_case.execute(dto)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return EncryptedSubscriptionResponse(
+        id=result.id,
+        public_id=result.public_id,
+        encrypted_link=result.encrypted_link,
+        expires_at=result.expires_at,
+        vpn_sources_count=result.vpn_sources_count,
+        tags_used=result.tags_used,
+        created_at=result.created_at,
+    )
+
+
+@router.patch(
+    "/subscriptions/{public_id}/renew",
+    response_model=EncryptedSubscriptionResponse,
+)
+async def renew_subscription(
+    public_id: str,
+    request: RenewSubscriptionRequest,
+    admin: str = Depends(get_current_admin),
+    subscription_repo: SubscriptionIssueRepository = Depends(get_subscription_repo),
+    time_provider: SystemTimeProvider = Depends(get_time_provider),
+):
+    traffic_info = None
+    if request.traffic_info:
+        traffic_info = TrafficInfo(
+            upload=request.traffic_info.upload,
+            download=request.traffic_info.download,
+            total=request.traffic_info.total,
+        )
+
+    dto = RenewSubscriptionDTO(
+        public_id=public_id,
+        additional_hours=request.additional_hours,
+        updated_by=admin,
+        max_devices=request.max_devices,
+        traffic_info=traffic_info,
+    )
+
+    try:
+        result = await RenewSubscriptionUseCase(
+            subscription_repo=subscription_repo,
+            time_provider=time_provider,
+        ).execute(dto)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

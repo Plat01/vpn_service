@@ -49,6 +49,12 @@ class CreateEncryptedSubscriptionRequest(BaseModel):
     provider_id: str | None = None
 
 
+class RenewSubscriptionRequest(BaseModel):
+    additional_hours: int = Field(..., ge=1, le=8760)
+    max_devices: int | None = Field(None, ge=1)
+    traffic_info: TrafficInfoRequest | None = None
+
+
 class EncryptedSubscriptionResponse(BaseModel):
     id: UUID
     public_id: str

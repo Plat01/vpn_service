@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.domain.subscription_issuance.value_objects import (
     SubscriptionBehavior,
@@ -7,6 +7,7 @@ from src.domain.subscription_issuance.value_objects import (
     SubscriptionIssueItemId,
     SubscriptionMetadata,
     SubscriptionStatus,
+    TrafficInfo,
 )
 from src.domain.vpn_catalog.value_objects import VpnSourceId
 
@@ -59,6 +60,24 @@ class SubscriptionIssue:
 
     def set_encrypted_link(self, encrypted_link: str) -> None:
         self.encrypted_link = encrypted_link
+
+    def extend_ttl(self, additional_hours: int, now: datetime) -> None:
+        if additional_hours < 1:
+            raise ValueError("additional_hours must be at least 1")
+        base = max(now, self.expires_at)
+        self.expires_at = base + timedelta(hours=additional_hours)
+        if self.status == SubscriptionStatus.expired:
+            self.status = SubscriptionStatus.active
+
+    def set_max_devices(self, value: int | None) -> None:
+        if value is not None and value < 1:
+            raise ValueError("max_devices must be at least 1 if specified")
+        self.max_devices = value
+
+    def update_traffic_info(self, traffic_info: TrafficInfo) -> None:
+        if self.metadata is None:
+            self.metadata = SubscriptionMetadata()
+        object.__setattr__(self.metadata, "traffic_info", traffic_info)
 
 
 @dataclass

@@ -10,7 +10,9 @@ from src.domain.subscription_issuance.entities import (
 from src.domain.subscription_issuance.value_objects import (
     SubscriptionIssueId,
     SubscriptionIssueItemId,
+    SubscriptionMetadata,
     SubscriptionStatus,
+    TrafficInfo,
 )
 from src.domain.vpn_catalog.value_objects import VpnSourceId
 
@@ -244,6 +246,194 @@ class TestSubscriptionIssueEntity:
         subscription.set_encrypted_link("happ://crypt5/abc123")
 
         assert subscription.encrypted_link == "happ://crypt5/abc123"
+
+    def test_extend_ttl_active_subscription(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription.extend_ttl(5, now)
+
+        expected = now + timedelta(hours=15)
+        assert subscription.expires_at == expected
+        assert subscription.status == SubscriptionStatus.active
+
+    def test_extend_ttl_expired_subscription(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now - timedelta(hours=5)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.expired,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription.extend_ttl(24, now)
+
+        expected = now + timedelta(hours=24)
+        assert subscription.expires_at == expected
+        assert subscription.status == SubscriptionStatus.active
+
+    def test_extend_ttl_reactivates_expired(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now - timedelta(hours=5)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.expired,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription.extend_ttl(24, now)
+
+        assert subscription.status == SubscriptionStatus.active
+
+    def test_extend_ttl_invalid_hours(self):
+        now = datetime.now(timezone.utc)
+        created_at = now - timedelta(hours=48)
+        expires_at = now + timedelta(hours=10)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=created_at,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        with pytest.raises(ValueError, match="additional_hours must be at least 1"):
+            subscription.extend_ttl(0, now)
+
+    def test_set_max_devices_valid(self):
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription.set_max_devices(5)
+
+        assert subscription.max_devices == 5
+
+    def test_set_max_devices_none(self):
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=3,
+            created_at=now,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        subscription.set_max_devices(None)
+
+        assert subscription.max_devices is None
+
+    def test_set_max_devices_invalid(self):
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        with pytest.raises(ValueError, match="max_devices must be at least 1"):
+            subscription.set_max_devices(0)
+
+    def test_update_traffic_info_new(self):
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["eu"],
+        )
+
+        assert subscription.metadata is None
+
+        traffic = TrafficInfo(upload=100, download=200, total=300)
+        subscription.update_traffic_info(traffic)
+
+        assert subscription.metadata is not None
+        assert subscription.metadata.traffic_info == traffic
+
+    def test_update_traffic_info_existing(self):
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(hours=24)
+        existing_traffic = TrafficInfo(upload=10, download=20, total=30)
+
+        subscription = SubscriptionIssue(
+            id=SubscriptionIssueId(value=uuid4()),
+            public_id=str(uuid4()),
+            status=SubscriptionStatus.active,
+            expires_at=expires_at,
+            max_devices=None,
+            created_at=now,
+            created_by="admin",
+            tags_used=["eu"],
+            metadata=SubscriptionMetadata(
+                profile_title="Test Profile",
+                traffic_info=existing_traffic,
+            ),
+        )
+
+        new_traffic = TrafficInfo(upload=100, download=200, total=300)
+        subscription.update_traffic_info(new_traffic)
+
+        assert subscription.metadata.traffic_info == new_traffic
+        assert subscription.metadata.profile_title == "Test Profile"
 
 
 class TestSubscriptionIssueItemEntity:

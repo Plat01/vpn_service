@@ -5,6 +5,7 @@ from uuid import UUID
 from src.domain.subscription_issuance.value_objects import (
     SubscriptionBehavior,
     SubscriptionMetadata,
+    TrafficInfo,
 )
 
 
@@ -28,6 +29,15 @@ class SubscriptionIssueResultDTO:
     vpn_sources_count: int
     tags_used: list[str]
     created_at: datetime
+
+
+@dataclass
+class RenewSubscriptionDTO:
+    public_id: str
+    additional_hours: int
+    updated_by: str
+    max_devices: int | None = None
+    traffic_info: TrafficInfo | None = None
 
 
 @dataclass

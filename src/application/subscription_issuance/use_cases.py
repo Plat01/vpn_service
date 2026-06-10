@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from src.application.subscription_issuance.dto import (
     CreateEncryptedSubscriptionDTO,
+    RenewSubscriptionDTO,
     SubscriptionIssueResultDTO,
 )
 from src.config import settings
@@ -241,4 +242,50 @@ class GetSubscriptionConfigUseCase:
             provider_id=subscription.provider_id,
             expires_at=subscription.expires_at,
             public_id=public_id,
+        )
+
+
+class RenewSubscriptionUseCase:
+    def __init__(
+        self,
+        subscription_repo: SubscriptionIssueRepository,
+        time_provider: TimeProvider,
+    ):
+        self._subscription_repo = subscription_repo
+        self._time_provider = time_provider
+
+    async def execute(self, dto: RenewSubscriptionDTO) -> SubscriptionIssueResultDTO:
+        subscription = await self._subscription_repo.get_by_public_id(dto.public_id)
+        if not subscription:
+            raise ValueError(f"Subscription not found: public_id={dto.public_id[:8]}...")
+
+        if subscription.is_revoked():
+            raise ValueError(f"Cannot renew revoked subscription: public_id={dto.public_id[:8]}...")
+
+        now = self._time_provider.now()
+        subscription.extend_ttl(dto.additional_hours, now)
+
+        if dto.max_devices is not None:
+            subscription.set_max_devices(dto.max_devices)
+
+        if dto.traffic_info is not None:
+            subscription.update_traffic_info(dto.traffic_info)
+
+        updated = await self._subscription_repo.update(subscription)
+
+        logger.info(
+            "Subscription renewed: public_id=%s, additional_hours=%d, new_expires_at=%s",
+            dto.public_id[:8] + "...",
+            dto.additional_hours,
+            updated.expires_at.isoformat(),
+        )
+
+        return SubscriptionIssueResultDTO(
+            id=updated.id.value,
+            public_id=updated.public_id,
+            encrypted_link=updated.encrypted_link or "",
+            expires_at=updated.expires_at,
+            vpn_sources_count=0,
+            tags_used=updated.tags_used,
+            created_at=updated.created_at,
         )

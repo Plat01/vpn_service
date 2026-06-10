@@ -92,6 +92,9 @@ class SqlAlchemySubscriptionIssueRepository(SubscriptionIssueRepository):
             )
 
         model.status = subscription_issue.status.value
+        model.expires_at = subscription_issue.expires_at
+        model.max_devices = subscription_issue.max_devices
+        model.meta_data = self._map_metadata_to_db(subscription_issue.metadata)
         model.encrypted_link = subscription_issue.encrypted_link
         model.revoked_at = subscription_issue.revoked_at
 

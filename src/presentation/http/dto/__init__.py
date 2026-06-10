@@ -1,6 +1,7 @@
 from src.presentation.http.dto.subscription_issuance import (
     CreateEncryptedSubscriptionRequest,
     EncryptedSubscriptionResponse,
+    RenewSubscriptionRequest,
 )
 from src.presentation.http.dto.vpn_sources import (
     BatchCreateFailureResponse,
@@ -40,4 +41,5 @@ __all__ = [
     "SyncTextResponse",
     "CreateEncryptedSubscriptionRequest",
     "EncryptedSubscriptionResponse",
+    "RenewSubscriptionRequest",
 ]
