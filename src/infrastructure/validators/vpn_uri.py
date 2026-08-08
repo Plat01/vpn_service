@@ -11,15 +11,18 @@ from src.domain.vpn_catalog.value_objects import VpnUri
 
 
 class CompositeVpnUriValidator(VpnUriValidator):
-    SUPPORTED_SCHEMES = ["vless", "trojan", "vmess", "ss", "ssr"]
+    SUPPORTED_SCHEMES = ["vless", "trojan", "vmess", "ss", "ssr", "hysteria2", "hy2"]
 
     def __init__(self):
+        hysteria2_validator = Hysteria2UriValidator()
         self._validators = {
             "vless": VlessUriValidator(),
             "trojan": TrojanUriValidator(),
             "vmess": VmessUriValidator(),
             "ss": ShadowsocksUriValidator(),
             "ssr": ShadowsocksRUriValidator(),
+            "hysteria2": hysteria2_validator,
+            "hy2": hysteria2_validator,
         }
 
     def validate(self, uri: VpnUri) -> VpnUriValidationResult:
@@ -282,3 +285,45 @@ class ShadowsocksRUriValidator(VpnUriValidator):
 
     def get_supported_schemes(self) -> list[str]:
         return ["ssr"]
+
+
+class Hysteria2UriValidator(VpnUriValidator):
+    def _normalize_uri(self, uri_str: str) -> str:
+        pattern = r"^(hysteria2|hy2)://[^@]+@[^:]+:\d+\s+"
+        if re.match(pattern, uri_str):
+            return uri_str.replace(" ", "?", 1)
+        return uri_str
+
+    def validate(self, uri: VpnUri) -> VpnUriValidationResult:
+        errors: list[ValidationError] = []
+
+        normalized = self._normalize_uri(uri.value)
+
+        try:
+            parsed = urlparse(normalized)
+        except Exception:
+            return VpnUriValidationResult.failure(
+                [ValidationError("Invalid URI format")]
+            )
+
+        if not parsed.hostname:
+            errors.append(ValidationError("Missing required parameter: 'host'"))
+
+        # Port is optional in Hysteria2 (defaults to 443), but must be valid when given.
+        try:
+            parsed.port
+        except ValueError:
+            errors.append(ValidationError("Hysteria2 port must be between 1 and 65535"))
+
+        if not parsed.username:
+            errors.append(
+                ValidationError("Hysteria2 requires auth in userinfo (e.g., auth@host:port)")
+            )
+
+        if errors:
+            return VpnUriValidationResult.failure(errors)
+
+        return VpnUriValidationResult.success()
+
+    def get_supported_schemes(self) -> list[str]:
+        return ["hysteria2", "hy2"]

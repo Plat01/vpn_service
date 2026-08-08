@@ -386,7 +386,8 @@ async def sync_vpn_sources_text(
                     "vless://uuid-2@example.com:443?security=reality#Amsterdam-2\n"
                     "\n"
                     "# Backup\n"
-                    "trojan://password@example.com:443?security=tls#Warsaw-1"
+                    "trojan://password@example.com:443?security=tls#Warsaw-1\n"
+                    "hysteria2://auth@example.com:443/?security=tls&alpn=h3#Stockholm-1"
                 ),
             },
         },

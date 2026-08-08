@@ -7,6 +7,7 @@ from src.infrastructure.validators.vpn_uri import (
     VmessUriValidator,
     ShadowsocksUriValidator,
     ShadowsocksRUriValidator,
+    Hysteria2UriValidator,
 )
 
 
@@ -16,7 +17,7 @@ class TestCompositeVpnUriValidator:
 
     def test_get_supported_schemes(self):
         schemes = self.validator.get_supported_schemes()
-        assert schemes == ["vless", "trojan", "vmess", "ss", "ssr"]
+        assert schemes == ["vless", "trojan", "vmess", "ss", "ssr", "hysteria2", "hy2"]
 
     def test_invalid_uri_without_scheme(self):
         uri = VpnUri(value="invalid-uri")
@@ -211,3 +212,74 @@ class TestShadowsocksRUriValidator:
         result = self.validator.validate(uri)
         assert not result.is_valid
         assert any("host" in e.message for e in result.errors)
+
+
+class TestHysteria2UriValidator:
+    def setup_method(self):
+        self.validator = Hysteria2UriValidator()
+
+    def test_valid_hysteria2_uri(self):
+        uri = VpnUri(
+            value=(
+                "hysteria2://20c092eb-05f2-49d7-8183-fc50308b6dc3@all.cryptoofarm.com:443/"
+                "?security=tls&fp=chrome&alpn=h3&sni=all.cryptoofarm.com#🇸🇪 Швеция Hysteria"
+            )
+        )
+        result = self.validator.validate(uri)
+        assert result.is_valid
+        assert len(result.errors) == 0
+
+    def test_valid_hy2_alias(self):
+        uri = VpnUri(value="hy2://password123@example.com:8443?sni=example.com#test")
+        result = self.validator.validate(uri)
+        assert result.is_valid
+
+    def test_hysteria2_uri_without_port_is_valid(self):
+        uri = VpnUri(value="hysteria2://password123@example.com#test")
+        result = self.validator.validate(uri)
+        assert result.is_valid
+
+    def test_hysteria2_uri_missing_host(self):
+        uri = VpnUri(value="hysteria2://password123@:443")
+        result = self.validator.validate(uri)
+        assert not result.is_valid
+        assert any("host" in e.message for e in result.errors)
+
+    def test_hysteria2_uri_missing_auth(self):
+        uri = VpnUri(value="hysteria2://example.com:443")
+        result = self.validator.validate(uri)
+        assert not result.is_valid
+        assert any("auth" in e.message for e in result.errors)
+
+    def test_hysteria2_uri_invalid_port(self):
+        uri = VpnUri(value="hysteria2://password123@example.com:99999")
+        result = self.validator.validate(uri)
+        assert not result.is_valid
+        assert any("port" in e.message for e in result.errors)
+
+    def test_hysteria2_uri_with_space_instead_of_question_mark(self):
+        uri = VpnUri(
+            value="hysteria2://password123@example.com:443 sni=example.com#test"
+        )
+        result = self.validator.validate(uri)
+        assert result.is_valid
+
+
+class TestCompositeWithHysteria2:
+    def setup_method(self):
+        self.validator = CompositeVpnUriValidator()
+
+    def test_composite_accepts_hysteria2(self):
+        uri = VpnUri(
+            value=(
+                "hysteria2://20c092eb-05f2-49d7-8183-fc50308b6dc3@all.cryptoofarm.com:443/"
+                "?security=tls&fp=chrome&alpn=h3&sni=all.cryptoofarm.com#🇸🇪 Швеция Hysteria"
+            )
+        )
+        result = self.validator.validate(uri)
+        assert result.is_valid
+
+    def test_composite_accepts_hy2(self):
+        uri = VpnUri(value="hy2://password123@example.com:443#test")
+        result = self.validator.validate(uri)
+        assert result.is_valid

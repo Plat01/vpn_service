@@ -50,8 +50,6 @@ class PlainTextUriParser:
 
     def mask_uri_for_logging(self, uri: str) -> str:
         scheme = uri.split("://")[0] if "://" in uri else ""
-        if scheme in ("vless", "vmess"):
-            return f"{scheme}://***MASKED***@***MASKED***"
-        elif scheme in ("trojan", "ss"):
+        if scheme in ("vless", "vmess", "trojan", "ss", "ssr", "hysteria2", "hy2"):
             return f"{scheme}://***MASKED***@***MASKED***"
         return f"{scheme}://***MASKED***" if scheme else "***MASKED***"
