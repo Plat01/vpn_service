@@ -29,17 +29,17 @@ async def test_session(test_engine):
 
 
 @pytest.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+async def client(async_client):
+    return async_client
 
 
 @pytest.fixture
-def auth_headers():
+def auth_headers(admin_credentials):
     import base64
 
-    credentials = base64.b64encode("admin:change_me_in_production".encode()).decode()
+    credentials = base64.b64encode(
+        f"{admin_credentials['username']}:{admin_credentials['password']}".encode()
+    ).decode()
     return {"Authorization": f"Basic {credentials}"}
 
 
@@ -150,3 +150,163 @@ class TestVpnSourcesEndpoints:
     async def test_unauthorized_access(self, client: AsyncClient):
         response = await client.get("/api/v1/admin/vpn-sources")
         assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_create_vpn_source_with_nonexistent_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        response = await client.post(
+            "/api/v1/admin/vpn-sources",
+            json={
+                "name": "Test Server",
+                "uri": "vless://12345678-1234-1234-1234-123456789abc@example.com:443",
+                "is_active": True,
+                "tags": ["nonexistent-tag"],
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+        assert "nonexistent-tag" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_vpn_source_with_valid_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        tag_response = await client.post(
+            "/api/v1/admin/vpn-source-tags",
+            json={"name": "Europe", "slug": "eu"},
+            headers=auth_headers,
+        )
+        assert tag_response.status_code == 201
+
+        response = await client.post(
+            "/api/v1/admin/vpn-sources",
+            json={
+                "name": "Test Server",
+                "uri": "vless://12345678-1234-1234-1234-123456789abc@example.com:443",
+                "is_active": True,
+                "tags": ["eu"],
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert len(data["tags"]) == 1
+        assert data["tags"][0]["slug"] == "eu"
+
+    @pytest.mark.asyncio
+    async def test_update_vpn_source_with_nonexistent_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        create_response = await client.post(
+            "/api/v1/admin/vpn-sources",
+            json={
+                "name": "Test Server",
+                "uri": "vless://12345678-1234-1234-1234-123456789abc@example.com:443",
+            },
+            headers=auth_headers,
+        )
+        assert create_response.status_code == 201
+        source_id = create_response.json()["id"]
+
+        response = await client.patch(
+            f"/api/v1/admin/vpn-sources/{source_id}",
+            json={"tags": ["nonexistent-tag"]},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+        assert "nonexistent-tag" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_delete_vpn_sources_by_tags_nonexistent_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        response = await client.delete(
+            "/api/v1/admin/vpn-sources/by-tags?tags=nonexistent",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted_count"] == 0
+        assert data["tag_slugs"] == ["nonexistent"]
+
+    @pytest.mark.asyncio
+    async def test_delete_vpn_sources_by_tags_empty_tags(
+        self, client: AsyncClient, auth_headers
+    ):
+        response = await client.delete(
+            "/api/v1/admin/vpn-sources/by-tags?tags=",
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_delete_vpn_sources_by_tags_success(
+        self, client: AsyncClient, auth_headers
+    ):
+        tag_response = await client.post(
+            "/api/v1/admin/vpn-source-tags",
+            json={"name": "DeleteTest", "slug": "delete-test"},
+            headers=auth_headers,
+        )
+        assert tag_response.status_code == 201
+
+        create_response = await client.post(
+            "/api/v1/admin/vpn-sources",
+            json={
+                "name": "ToDelete",
+                "uri": "vless://aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa@example.com:443",
+                "tags": ["delete-test"],
+            },
+            headers=auth_headers,
+        )
+        assert create_response.status_code == 201
+
+        create_response2 = await client.post(
+            "/api/v1/admin/vpn-sources",
+            json={
+                "name": "Keep",
+                "uri": "vless://bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb@example.com:443",
+                "tags": ["delete-test"],
+            },
+            headers=auth_headers,
+        )
+        assert create_response2.status_code == 201
+
+        response = await client.delete(
+            "/api/v1/admin/vpn-sources/by-tags?tags=delete-test",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted_count"] == 2
+        assert data["tag_slugs"] == ["delete-test"]
+
+    @pytest.mark.asyncio
+    async def test_delete_vpn_sources_by_tags_unauthorized(
+        self, client: AsyncClient
+    ):
+        response = await client.delete(
+            "/api/v1/admin/vpn-sources/by-tags?tags=test",
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_batch_create_with_nonexistent_tag(
+        self, client: AsyncClient, auth_headers
+    ):
+        response = await client.post(
+            "/api/v1/admin/vpn-sources/batch",
+            json={
+                "items": [
+                    {
+                        "name": "Server 1",
+                        "uri": "vless://12345678-1234-1234-1234-123456789abc@example.com:443",
+                        "tags": ["nonexistent-tag"],
+                    }
+                ]
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+        assert "nonexistent-tag" in response.json()["detail"]

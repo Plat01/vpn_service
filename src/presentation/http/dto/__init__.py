@@ -1,3 +1,7 @@
+from src.presentation.http.dto.subscription_issuance import (
+    CreateEncryptedSubscriptionRequest,
+    EncryptedSubscriptionResponse,
+)
 from src.presentation.http.dto.vpn_sources import (
     BatchCreateFailureResponse,
     BatchCreateRequest,
@@ -5,6 +9,10 @@ from src.presentation.http.dto.vpn_sources import (
     BatchCreateVpnSourceRequest,
     CreateTagRequest,
     CreateVpnSourceRequest,
+    DeleteByTagsResponse,
+    SyncTextFailureResponse,
+    SyncTextPreviewItem,
+    SyncTextResponse,
     TagListResponse,
     TagResponse,
     UpdateVpnSourceRequest,
@@ -26,4 +34,10 @@ __all__ = [
     "BatchCreateResponse",
     "CreateTagRequest",
     "TagListResponse",
+    "DeleteByTagsResponse",
+    "SyncTextFailureResponse",
+    "SyncTextPreviewItem",
+    "SyncTextResponse",
+    "CreateEncryptedSubscriptionRequest",
+    "EncryptedSubscriptionResponse",
 ]

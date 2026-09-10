@@ -1,4 +1,3 @@
-import pytest
 
 from src.domain.vpn_catalog.value_objects import VpnUri
 from src.infrastructure.validators.vpn_uri import (

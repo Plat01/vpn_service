@@ -1,6 +1,6 @@
 import base64
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from src.domain.vpn_catalog.validation_errors import (
     ValidationError,
@@ -187,7 +187,7 @@ class VmessUriValidator(VpnUriValidator):
                 port = int(config["port"])
                 if port < 1 or port > 65535:
                     errors.append(
-                        ValidationError(f"VMess port must be between 1 and 65535")
+                        ValidationError("VMess port must be between 1 and 65535")
                     )
             except (ValueError, TypeError):
                 errors.append(

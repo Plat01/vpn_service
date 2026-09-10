@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     library_log_level: str = "WARNING"
 
+    happ_crypto_api_url: str = "https://crypto.happ.su/api-v2.php"
+    subscription_base_url: str = "http://localhost:8000"
+
     @field_validator("log_level", "library_log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

@@ -1,47 +1,48 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 
 from src.application.vpn_catalog.dto import (
     BatchCreateVpnSourceDTO,
     CreateVpnSourceDTO,
-    CreateTagDTO,
-    TagDTO,
+    SyncTextFailureDTO,
     UpdateVpnSourceDTO,
     VpnSourceFilterDTO,
-)
-from src.application.vpn_catalog.tag_use_cases import (
-    CreateTagUseCase,
-    GetAllTagsUseCase,
 )
 from src.application.vpn_catalog.use_cases import (
     BatchCreateVpnSourcesUseCase,
     CreateVpnSourceUseCase,
     DeleteVpnSourceUseCase,
+    DeleteVpnSourcesByTagsUseCase,
     GetAllVpnSourcesUseCase,
     GetVpnSourceByIdUseCase,
+    SyncVpnSourcesTextUseCase,
     UpdateVpnSourceUseCase,
 )
 from src.domain.vpn_catalog.repositories import (
+    VpnSourceImportRepository,
     VpnSourceRepository,
     VpnSourceTagRepository,
 )
 from src.domain.vpn_catalog.validators import VpnUriValidator
 from src.infrastructure.db.repositories import (
+    SqlAlchemyVpnSourceImportRepository,
     SqlAlchemyVpnSourceRepository,
     SqlAlchemyVpnSourceTagRepository,
 )
+from src.infrastructure.parsers import PlainTextUriParser
 from src.infrastructure.validators import CompositeVpnUriValidator
 from src.presentation.http.dependencies import get_current_admin
 from src.presentation.http.dto import (
     BatchCreateFailureResponse,
     BatchCreateRequest,
     BatchCreateResponse,
-    BatchCreateVpnSourceRequest,
-    CreateTagRequest,
     CreateVpnSourceRequest,
-    TagListResponse,
+    DeleteByTagsResponse,
+    SyncTextFailureResponse,
+    SyncTextPreviewItem,
+    SyncTextResponse,
     TagResponse,
     UpdateVpnSourceRequest,
     VpnSourceDetailResponse,
@@ -61,6 +62,16 @@ def get_vpn_source_repo(
 
 def get_tag_repo(session: get_session = Depends(get_session)) -> VpnSourceTagRepository:
     return SqlAlchemyVpnSourceTagRepository(session)
+
+
+def get_import_repo(
+    session: get_session = Depends(get_session),
+) -> VpnSourceImportRepository:
+    return SqlAlchemyVpnSourceImportRepository(session)
+
+
+def get_parser() -> PlainTextUriParser:
+    return PlainTextUriParser()
 
 
 def get_validator() -> VpnUriValidator:
@@ -314,6 +325,32 @@ async def update_vpn_source(
     )
 
 
+@router.delete(
+    "/vpn-sources/by-tags",
+    response_model=DeleteByTagsResponse,
+)
+async def delete_vpn_sources_by_tags(
+    admin: str = Depends(get_current_admin),
+    vpn_source_repo: VpnSourceRepository = Depends(get_vpn_source_repo),
+    tags: Annotated[str, Query(description="Comma-separated tag slugs")] = ...,
+):
+    tag_slugs = [t.strip() for t in tags.split(",") if t.strip()]
+
+    if not tag_slugs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one tag slug is required",
+        )
+
+    use_case = DeleteVpnSourcesByTagsUseCase(vpn_source_repo)
+    result = await use_case.execute(tag_slugs)
+
+    return DeleteByTagsResponse(
+        deleted_count=result.deleted_count,
+        tag_slugs=result.tag_slugs,
+    )
+
+
 @router.delete("/vpn-sources/{vpn_source_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_vpn_source(
     vpn_source_id: UUID,
@@ -329,3 +366,143 @@ async def delete_vpn_source(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"VpnSource with id {vpn_source_id} not found",
         )
+
+
+@router.put(
+    "/vpn-sources/sync-text",
+    response_model=SyncTextResponse,
+    summary="Sync VPN sources from plain text",
+)
+async def sync_vpn_sources_text(
+    text: str = Body(
+        ...,
+        media_type="text/plain",
+        examples={
+            "example": {
+                "summary": "Example VPN list",
+                "value": (
+                    "# Main servers\n"
+                    "vless://uuid-1@example.com:443?security=reality#Amsterdam-1\n"
+                    "vless://uuid-2@example.com:443?security=reality#Amsterdam-2\n"
+                    "\n"
+                    "# Backup\n"
+                    "trojan://password@example.com:443?security=tls#Warsaw-1"
+                ),
+            },
+        },
+    ),
+    admin: str = Depends(get_current_admin),
+    vpn_source_repo: VpnSourceRepository = Depends(get_vpn_source_repo),
+    tag_repo: VpnSourceTagRepository = Depends(get_tag_repo),
+    validator: VpnUriValidator = Depends(get_validator),
+    import_repo: VpnSourceImportRepository = Depends(get_import_repo),
+    parser: PlainTextUriParser = Depends(get_parser),
+    tags: Annotated[str | None, Query(description="Comma-separated tags")] = None,
+    import_group: Annotated[str, Query()] = "default",
+    mode: Annotated[Literal["replace", "upsert", "append"], Query()] = "replace",
+    dry_run: Annotated[bool, Query()] = True,
+    deactivate_missing: Annotated[bool, Query()] = True,
+    ignore_invalid: Annotated[bool, Query()] = False,
+    name_strategy: Annotated[Literal["fragment", "host", "line_number"], Query()] = "fragment",
+):
+    tag_list = tags.split(",") if tags else []
+
+    use_case = SyncVpnSourcesTextUseCase(
+        vpn_source_repo=vpn_source_repo,
+        tag_repo=tag_repo,
+        validator=validator,
+        import_repo=import_repo,
+        parser=parser,
+    )
+
+    try:
+        result = await use_case.execute(
+            text=text,
+            mode=mode,
+            import_group=import_group,
+            tags=tag_list,
+            dry_run=dry_run,
+            deactivate_missing=deactivate_missing,
+            ignore_invalid=ignore_invalid,
+            name_strategy=name_strategy,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return SyncTextResponse(
+        dry_run=result.dry_run,
+        mode=result.mode,
+        import_group=result.import_group,
+        tags=result.tags,
+        parsed_count=result.parsed_count,
+        valid_count=result.valid_count,
+        invalid_count=result.invalid_count,
+        to_create_count=result.to_create_count,
+        to_update_count=result.to_update_count,
+        to_deactivate_count=result.to_deactivate_count,
+        created=[
+            SyncTextPreviewItem(
+                id=item.id,
+                name=item.name,
+                uri=item.uri,
+                action="create",
+                tags=[
+                    TagResponse(
+                        id=t.id,
+                        name=t.name,
+                        slug=t.slug,
+                        created_at=t.created_at,
+                    )
+                    for t in item.tags
+                ],
+            )
+            for item in result.created
+        ],
+        updated=[
+            SyncTextPreviewItem(
+                id=item.id,
+                name=item.name,
+                uri=item.uri,
+                action="update",
+                tags=[
+                    TagResponse(
+                        id=t.id,
+                        name=t.name,
+                        slug=t.slug,
+                        created_at=t.created_at,
+                    )
+                    for t in item.tags
+                ],
+            )
+            for item in result.updated
+        ],
+        deactivated=[
+            SyncTextPreviewItem(
+                id=item.id,
+                name=item.name,
+                uri=item.uri,
+                action="deactivate",
+                tags=[
+                    TagResponse(
+                        id=t.id,
+                        name=t.name,
+                        slug=t.slug,
+                        created_at=t.created_at,
+                    )
+                    for t in item.tags
+                ],
+            )
+            for item in result.deactivated
+        ],
+        failed=[
+            SyncTextFailureResponse(
+                line=f.line,
+                raw=f.raw,
+                error=f.error,
+            )
+            for f in result.failed
+        ],
+    )
